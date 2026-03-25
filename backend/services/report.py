@@ -1,5 +1,4 @@
 from datetime import datetime
-from backend.graph.state import PortfolioState
 from backend.utils.gemini import call_gemini
 
 SYSTEM = """
@@ -8,12 +7,7 @@ SYSTEM = """
 """
 
 
-def report_generator(state: PortfolioState) -> dict:
-    portfolio = state["portfolio"]
-    analysis = state.get("analysis") or {}
-    mapping = state.get("portfolio_risk_mapping") or {}
-    alerts = state.get("alerts") or []
-
+def generate_report(portfolio: list[str], analysis: dict, portfolio_mapping: dict, alerts: list[str]) -> str:
     sentiment = analysis.get("sentiment", {})
     risk_scores = analysis.get("risk_scores", {})
     events = analysis.get("events", [])
@@ -25,7 +19,7 @@ def report_generator(state: PortfolioState) -> dict:
 
     portfolio_text = "\n".join([
         f"- {stock}: 리스크 {d['risk_score']}/10 ({d['risk_level']}) | 섹터: {d['sector']} | 30일 변동: {d.get('change_30d_pct', 'N/A')}%"
-        for stock, d in mapping.items()
+        for stock, d in portfolio_mapping.items()
     ])
 
     prompt = f"""
@@ -62,5 +56,4 @@ def report_generator(state: PortfolioState) -> dict:
 ## 투자자 권고사항
 (구체적이고 실행 가능한 조언 3가지)
 """
-    report = call_gemini(prompt, SYSTEM)
-    return {"final_report": report}
+    return call_gemini(prompt, SYSTEM)

@@ -24,8 +24,6 @@ export interface VisualizationData {
 
 export interface AnalysisResult {
   final_report: string | null;
-  pm_approved: boolean | null;
-  pm_feedback: string | null;
   alerts: string[] | null;
   visualization_data: VisualizationData | null;
   portfolio_risk_mapping: Record<string, StockRisk> | null;

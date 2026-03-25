@@ -1,9 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.graph.pipeline import run_analysis
+from backend.services.news import collect_news
+from backend.services.financial import fetch_financial_data
+from backend.services.analyzer import analyze
+from backend.services.report import generate_report
 
-app = FastAPI(title="War-Investment Agent API", version="2.0.0")
+app = FastAPI(title="War-Investment Agent API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,7 +17,6 @@ app.add_middleware(
 
 
 class AnalysisRequest(BaseModel):
-    user_request: str = "내 포트폴리오의 지정학 리스크를 분석해줘"
     portfolio: list[str]
 
 
@@ -24,8 +26,6 @@ class AnalysisResponse(BaseModel):
     visualization_data: dict | None
     portfolio_risk_mapping: dict | None
     overall_risk_level: str | None
-    pm_approved: bool | None = True
-    pm_feedback: str | None = None
 
 
 @app.get("/")
@@ -39,14 +39,21 @@ def analyze_portfolio(request: AnalysisRequest):
         raise HTTPException(status_code=400, detail="포트폴리오를 1개 이상 입력하세요")
 
     try:
-        result = run_analysis(request.user_request, request.portfolio)
-        analysis = result.get("analysis") or {}
-        risk_scores = analysis.get("risk_scores") or {}
+        news = collect_news(request.portfolio)
+        financial_data = fetch_financial_data(request.portfolio)
+        result = analyze(request.portfolio, news, financial_data)
+        final_report = generate_report(
+            request.portfolio,
+            result["analysis"],
+            result["portfolio_risk_mapping"],
+            result["alerts"],
+        )
+        risk_scores = result["analysis"].get("risk_scores", {})
         return AnalysisResponse(
-            final_report=result.get("final_report"),
-            alerts=result.get("alerts"),
-            visualization_data=result.get("visualization_data"),
-            portfolio_risk_mapping=result.get("portfolio_risk_mapping"),
+            final_report=final_report,
+            alerts=result["alerts"],
+            visualization_data=result["visualization_data"],
+            portfolio_risk_mapping=result["portfolio_risk_mapping"],
             overall_risk_level=risk_scores.get("overall_risk_level"),
         )
     except Exception as e:

@@ -44,11 +44,6 @@ export default function Dashboard({ result, onReset }: Props) {
               value: viz?.overall_sentiment ?? "-",
               color: "#1877F2",
             },
-            {
-              label: "PM 승인",
-              value: result.pm_approved ? "APPROVED" : "REVISION",
-              color: result.pm_approved ? "#1B5E20" : "#B71C1C",
-            },
           ].map((item) => (
             <div
               key={item.label}

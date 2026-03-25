@@ -69,7 +69,7 @@ export default function Home() {
             borderRadius: 20,
             border: "1px solid #B0CEFF",
           }}>
-            ● 16 AI Agents Active
+            ● AI 분석 시스템
           </div>
         </div>
       </header>
@@ -97,8 +97,8 @@ export default function Home() {
               animation: "spin 0.8s linear infinite",
               margin: "0 auto 16px",
             }} />
-            <div style={{ fontWeight: 600, color: "var(--fb-text-primary)", marginBottom: 8 }}>OMS 팀 분석 중...</div>
-            <div style={{ color: "var(--fb-text-secondary)", fontSize: 13 }}>PM → TPM → Supervisor 1/2/3 → 최종 리포트</div>
+            <div style={{ fontWeight: 600, color: "var(--fb-text-primary)", marginBottom: 8 }}>분석 중...</div>
+            <div style={{ color: "var(--fb-text-secondary)", fontSize: 13 }}>뉴스 수집 → 금융 데이터 → AI 분석 → 리포트 생성</div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}

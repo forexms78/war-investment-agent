@@ -1,5 +1,5 @@
 import json
-from backend.graph.state import PortfolioState
+from datetime import datetime
 from backend.utils.gemini import call_gemini
 
 SYSTEM = """
@@ -71,27 +71,49 @@ def _build_alerts(portfolio_mapping: dict, risk_scores: dict) -> list:
 
 
 def _build_visualization(portfolio_mapping: dict, analysis: dict) -> dict:
+    """프론트엔드 VisualizationData 타입과 일치하는 구조로 반환"""
     risk_scores = analysis.get("risk_scores", {})
     sector_risk = risk_scores.get("sector_risk", {})
+    sentiment = analysis.get("sentiment", {})
+    events = analysis.get("events", [])
+
+    portfolio_risk_chart = [
+        {
+            "stock": stock,
+            "risk_score": data["risk_score"],
+            "risk_level": data["risk_level"],
+            "sector": data["sector"],
+            "change_30d": data.get("change_30d_pct") or 0,
+        }
+        for stock, data in portfolio_mapping.items()
+    ]
+
+    sector_risk_chart = [
+        {"sector": sector, "score": info.get("score", 5)}
+        for sector, info in sector_risk.items()
+    ]
+
+    event_timeline = [
+        {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "type": e.get("event_type", "기타"),
+            "severity": e.get("severity", "중간"),
+            "summary": e.get("summary", ""),
+        }
+        for e in events
+    ]
+
     return {
-        "portfolio_risk": {
-            stock: data["risk_score"]
-            for stock, data in portfolio_mapping.items()
-        },
-        "sector_risk": {
-            sector: info.get("score", 5)
-            for sector, info in sector_risk.items()
-        },
-        "fear_index": analysis.get("sentiment", {}).get("fear_index", 50),
+        "portfolio_risk_chart": portfolio_risk_chart,
+        "sector_risk_chart": sector_risk_chart,
+        "event_timeline": event_timeline,
+        "fear_index": sentiment.get("fear_index", 50),
+        "overall_sentiment": sentiment.get("overall_sentiment", "중립"),
         "overall_risk_level": risk_scores.get("overall_risk_level", "중간"),
     }
 
 
-def analyzer(state: PortfolioState) -> dict:
-    news = state.get("raw_news") or []
-    financial = state.get("financial_data") or {}
-    portfolio = state["portfolio"]
-
+def analyze(portfolio: list[str], news: list[dict], financial_data: dict) -> dict:
     news_text = "\n".join([
         f"- {n['title']}: {n.get('description', '')[:150]}"
         for n in news[:5]
@@ -100,7 +122,7 @@ def analyzer(state: PortfolioState) -> dict:
 
     fin_text = "\n".join([
         f"- {stock}: 30일 변동 {d.get('change_30d_pct', 0)}%, 변동성 {d.get('volatility', 0)}%, 섹터: {d.get('sector', '기타')}"
-        for stock, d in financial.items()
+        for stock, d in financial_data.items()
         if "error" not in d
     ])
 
@@ -154,7 +176,7 @@ def analyzer(state: PortfolioState) -> dict:
             "risk_scores": {"sector_risk": {}, "overall_risk_level": "중간", "top_threat": "분석 불가"},
         }
 
-    portfolio_mapping = _build_portfolio_mapping(portfolio, financial, analysis.get("risk_scores", {}))
+    portfolio_mapping = _build_portfolio_mapping(portfolio, financial_data, analysis.get("risk_scores", {}))
     alerts = _build_alerts(portfolio_mapping, analysis.get("risk_scores", {}))
     visualization_data = _build_visualization(portfolio_mapping, analysis)
 
