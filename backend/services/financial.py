@@ -1,3 +1,4 @@
+import time
 import yfinance as yf
 import requests
 import statistics
@@ -8,6 +9,10 @@ _session.headers.update({
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 })
 yf.utils.requests = _session  # type: ignore
+
+# 인메모리 캐시 (ticker → (data, timestamp))
+_cache: dict[str, tuple[dict, float]] = {}
+CACHE_TTL = 900  # 15분
 
 
 def _fetch_via_rest(ticker: str) -> dict | None:
@@ -42,6 +47,11 @@ def _fetch_via_rest(ticker: str) -> dict | None:
 
 
 def get_stock_data(ticker: str) -> dict:
+    now = time.time()
+    cached = _cache.get(ticker)
+    if cached and now - cached[1] < CACHE_TTL:
+        return cached[0]
+
     try:
         t = yf.Ticker(ticker)
         info = t.info or {}
@@ -55,7 +65,7 @@ def get_stock_data(ticker: str) -> dict:
             prev = round(float(closes[0]), 2)
             change_pct = round((current - prev) / prev * 100, 2)
             changes = [(closes[i] - closes[i-1]) / closes[i-1] * 100 for i in range(1, len(closes))]
-            return {
+            result = {
                 "ticker": ticker,
                 "name": info.get("longName") or info.get("shortName") or ticker,
                 "sector": info.get("sector", ""),
@@ -68,15 +78,25 @@ def get_stock_data(ticker: str) -> dict:
                 "volatility": round(statistics.stdev(changes), 2) if len(changes) > 1 else 0,
                 "chart": [{"date": dates[i], "price": round(closes[i], 2)} for i in range(len(closes))][-20:],
             }
+            _cache[ticker] = (result, time.time())
+            return result
     except Exception:
         pass
 
     fallback = _fetch_via_rest(ticker)
     if fallback:
-        return {"ticker": ticker, "name": ticker, "sector": "", "industry": "", "market_cap": None, **fallback}
+        result = {"ticker": ticker, "name": ticker, "sector": "", "industry": "", "market_cap": None, **fallback}
+        _cache[ticker] = (result, time.time())
+        return result
 
     return {"ticker": ticker, "name": ticker, "error": "데이터 수집 실패"}
 
 
 def get_multiple_stocks(tickers: list[str]) -> dict[str, dict]:
-    return {t: get_stock_data(t) for t in tickers}
+    result = {}
+    for i, ticker in enumerate(tickers):
+        # 캐시 미스인 경우에만 delay로 rate limit 방지
+        if ticker not in _cache and i > 0:
+            time.sleep(0.5)
+        result[ticker] = get_stock_data(ticker)
+    return result
