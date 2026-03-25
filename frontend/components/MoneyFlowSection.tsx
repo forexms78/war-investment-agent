@@ -40,7 +40,7 @@ export default function MoneyFlowSection({ data }: Props) {
       </div>
 
       {/* 자산 카드 그리드 (2~3열) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+      <div className="grid-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
         {assets.map(asset => {
           const chg = asset.change_30d ?? 0;
           const isUp = chg >= 0;

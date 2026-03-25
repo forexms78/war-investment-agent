@@ -85,9 +85,9 @@ export default function Home() {
         position: "sticky", top: 0, zIndex: 100,
         background: "rgba(10,21,32,0.96)", backdropFilter: "blur(16px)",
       }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="header-inner" style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           {/* 로고 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="header-top-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img
               src="/whalyx-icon-round.png"
               alt="Whalyx"
@@ -100,7 +100,7 @@ export default function Home() {
           </div>
 
           {/* 탭 네비게이션 */}
-          <nav style={{ display: "flex", gap: 4 }}>
+          <nav className="header-nav" style={{ display: "flex", gap: 4 }}>
             {tabs.map(tab => (
               <button
                 key={tab.id}
@@ -119,7 +119,7 @@ export default function Home() {
             ))}
           </nav>
 
-          <div style={{ fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+          <div className="header-right" style={{ fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
             13F Filing · Live Markets · AI Insight
           </div>
         </div>
@@ -147,11 +147,11 @@ export default function Home() {
             </div>
 
             {loadingInvestors ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+              <div className="grid-investors" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
                 {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+              <div className="grid-investors" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
                 {investors.map(inv => (
                   <InvestorCard
                     key={inv.id}
@@ -168,7 +168,7 @@ export default function Home() {
         {activeTab === "crypto" && (
           <div className="fade-in">
             {loadingTab ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+              <div className="grid-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} height={120} />)}
               </div>
             ) : (
@@ -193,7 +193,7 @@ export default function Home() {
         {activeTab === "commodities" && (
           <div className="fade-in">
             {loadingTab ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+              <div className="grid-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
                 {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} height={140} />)}
               </div>
             ) : commodityData ? (

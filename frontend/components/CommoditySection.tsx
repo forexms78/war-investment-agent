@@ -30,16 +30,18 @@ export default function CommoditySection({ commodities, news }: Props) {
       </div>
 
       {/* 광물 카드 그리드 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 32 }}>
+      <div className="grid-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 32 }}>
         {commodities.map(item => {
           const catColor = CATEGORY_COLORS[item.category] || "var(--accent)";
           const isUp30 = item.change_30d_pct >= 0;
           const isUp1d = item.change_1d_pct >= 0;
+          const noPrice = !item.current_price;
           return (
             <div key={item.ticker} style={{
               background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: 14, padding: "16px 18px",
               transition: "all 0.15s",
+              opacity: noPrice ? 0.5 : 1,
             }}
               onMouseEnter={e => {
                 (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-light)";
@@ -91,7 +93,9 @@ export default function CommoditySection({ commodities, news }: Props) {
               {/* 가격 + 변동률 */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 3 }}>{formatPrice(item.current_price)}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 3 }}>
+                    {noPrice ? <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>데이터 로딩 중...</span> : formatPrice(item.current_price)}
+                  </div>
                   <div style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.4, maxWidth: 160 }}>{item.description}</div>
                 </div>
                 <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 3 }}>

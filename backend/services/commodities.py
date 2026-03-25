@@ -67,7 +67,7 @@ def _fetch_via_rest(ticker: str) -> dict | None:
     """REST API fallback"""
     try:
         url = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=30d"
-        r = _session.get(url, timeout=8)
+        r = _session.get(url, timeout=12)
         r.raise_for_status()
         data = r.json()["chart"]["result"][0]
         closes = [c for c in data["indicators"]["quote"][0]["close"] if c is not None]
@@ -147,7 +147,19 @@ def get_commodity_data(ticker: str) -> dict:
         _cache[ticker] = (result, time.time())
         return result
 
-    return {"ticker": ticker, "name": meta["name"], "category": meta["category"], "description": meta["description"], "error": "데이터 수집 실패"}
+    return {
+        "ticker": ticker,
+        "name": meta["name"],
+        "category": meta["category"],
+        "description": meta["description"],
+        "current_price": 0,
+        "prev_price": 0,
+        "change_30d_pct": 0,
+        "change_1d_pct": 0,
+        "volatility": 0,
+        "chart": [],
+        "error": "데이터 수집 실패",
+    }
 
 
 async def get_all_commodities() -> list[dict]:

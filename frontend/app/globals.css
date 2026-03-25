@@ -57,3 +57,46 @@ a { color: inherit; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.25s ease forwards; }
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .header-inner {
+    flex-direction: column !important;
+    height: auto !important;
+    padding: 12px 16px !important;
+    gap: 10px !important;
+  }
+  .header-top-row {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header-nav {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .header-nav::-webkit-scrollbar { display: none; }
+  .header-right {
+    display: none !important;
+  }
+  .grid-investors {
+    grid-template-columns: 1fr !important;
+  }
+  .grid-cards {
+    grid-template-columns: 1fr !important;
+  }
+  .modal-content {
+    max-height: 95vh !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .news-card-img {
+    width: 60px !important;
+    height: 60px !important;
+  }
+}

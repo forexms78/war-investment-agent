@@ -48,7 +48,7 @@ export default function StockModal({ ticker, onClose }: Props) {
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
+      <div className="modal-content" style={{
         background: "var(--card)", borderRadius: 16,
         border: "1px solid var(--border)",
         width: "100%", maxWidth: 640, maxHeight: "85vh", overflowY: "auto",

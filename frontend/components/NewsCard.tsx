@@ -23,7 +23,7 @@ export default function NewsCard({ news, fallbackEmoji = "📰" }: Props) {
         onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)"}
       >
         {/* 썸네일 또는 placeholder */}
-        <div style={{
+        <div className="news-card-img" style={{
           width: 80, height: 80, flexShrink: 0, borderRadius: 8, overflow: "hidden",
           background: hasImage ? "transparent" : "var(--border)",
           display: "flex", alignItems: "center", justifyContent: "center",
