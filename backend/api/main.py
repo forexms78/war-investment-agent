@@ -15,7 +15,7 @@ from backend.services.financial import get_stock_data, get_multiple_stocks_paral
 from backend.services.ai_summary import generate_investor_insight, generate_stock_insight
 from backend.services.coins import get_coin_markets, get_coin_detail
 
-app = FastAPI(title="WhaleTracks API", version="2.0.0")
+app = FastAPI(title="Whalyx API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,7 +35,7 @@ def _run(fn, *args):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "service": "WhaleTracks API", "version": "2.0.0"}
+    return {"status": "ok", "service": "Whalyx API", "version": "2.0.0"}
 
 
 # ─────────────────────────────────────────────

@@ -87,8 +87,8 @@ export default function Home() {
               boxShadow: "0 0 16px rgba(99,102,241,0.35)",
             }}>W</div>
             <div>
-              <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em" }}>WhaleTracks</span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Follow the smart money</span>
+              <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em" }}>Whalyx</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Whale Tracker</span>
             </div>
           </div>
 
