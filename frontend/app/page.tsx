@@ -88,7 +88,7 @@ export default function Home() {
             }}>W</div>
             <div>
               <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em" }}>WhaleTracks</span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Smart Money Tracker</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Follow the smart money</span>
             </div>
           </div>
 
@@ -113,7 +113,7 @@ export default function Home() {
           </nav>
 
           <div style={{ fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
-            SEC 13F · CoinGecko · NewsAPI
+            13F Filing · Live Markets · AI Insight
           </div>
         </div>
       </header>
