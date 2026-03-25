@@ -2,26 +2,27 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #060a12;
-  --bg-2: #0d1220;
-  --card: #0f1624;
-  --card-hover: #162035;
-  --border: #1a2640;
-  --border-light: #243555;
-  --text-primary: #eef2ff;
-  --text-secondary: #7c8db0;
-  --text-muted: #3d4f6e;
-  --accent: #3b82f6;
-  --accent-dim: rgba(59,130,246,0.1);
-  --accent-glow: rgba(59,130,246,0.2);
+  /* Whalyx — 고래 아이콘 기반 팔레트 (딥 네이비 + 스틸 블루 + 앰버) */
+  --bg: #0A1520;
+  --bg-2: #0E1E30;
+  --card: #12243A;
+  --card-hover: #172D47;
+  --border: #1E3550;
+  --border-light: #2A4A6A;
+  --text-primary: #E8F2FA;
+  --text-secondary: #6B8FA8;
+  --text-muted: #2D4A62;
+  --accent: #5B9EC9;
+  --accent-dim: rgba(91,158,201,0.12);
+  --accent-glow: rgba(91,158,201,0.25);
   --green: #10b981;
   --green-dim: rgba(16,185,129,0.1);
   --red: #ef4444;
   --red-dim: rgba(239,68,68,0.1);
-  --gold: #f59e0b;
-  --gold-dim: rgba(245,158,11,0.1);
-  --purple: #8b5cf6;
-  --orange: #f97316;
+  --gold: #E8A855;
+  --gold-dim: rgba(232,168,85,0.12);
+  --purple: #7AAFC8;
+  --orange: #E8A855;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

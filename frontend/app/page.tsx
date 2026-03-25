@@ -74,18 +74,16 @@ export default function Home() {
       <header style={{
         borderBottom: "1px solid var(--border)",
         position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(6,10,18,0.96)", backdropFilter: "blur(16px)",
+        background: "rgba(10,21,32,0.96)", backdropFilter: "blur(16px)",
       }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           {/* 로고 */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 15, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em",
-              boxShadow: "0 0 16px rgba(99,102,241,0.35)",
-            }}>W</div>
+            <img
+              src="/whalyx-icon-round.png"
+              alt="Whalyx"
+              style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", boxShadow: "0 0 14px rgba(91,158,201,0.3)" }}
+            />
             <div>
               <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em" }}>Whalyx</span>
               <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Whale Tracker</span>

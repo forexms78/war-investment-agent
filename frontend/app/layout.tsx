@@ -3,7 +3,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Whalyx | Whale Tracker",
-  description: "캐시 우드, 워런 버핏, 젠슨 황 등 세계적 투자자들의 최신 포트폴리오와 매수·매도 동향을 실시간으로 확인하세요.",
+  description: "워런 버핏·드러켄밀러 등 SEC 13F 기관 투자자의 매수·매도 동향을 실시간으로 추적하세요. 금리·주식·코인·부동산 자금 흐름 한눈에 파악.",
+  icons: {
+    icon: "/whalyx-icon-round.png",
+    apple: "/whalyx-icon-round.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
