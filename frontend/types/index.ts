@@ -38,6 +38,7 @@ export interface NewsItem {
   source: string;
   published_at: string;
   url: string;
+  image_url?: string;
 }
 
 export interface InvestorDetail {
@@ -114,6 +115,17 @@ export interface RealEstateIndicator {
   change: string;
   unit: string;
   trend: "up" | "down" | "flat";
+}
+
+export interface CommodityData {
+  ticker: string;
+  name: string;
+  category: string;
+  current_price: number;
+  change_30d_pct: number;
+  change_1d_pct: number;
+  chart: ChartPoint[];
+  description: string;
 }
 
 export interface MoneyFlowAsset {

@@ -9,9 +9,13 @@ interface Props {
   onClose: () => void;
 }
 
+type ChartPeriod = "1d" | "7d" | "30d";
+
 export default function StockModal({ ticker, onClose }: Props) {
   const [data, setData] = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("30d");
+  const [chartLoading, setChartLoading] = useState(false);
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/stocks/${ticker}`)
@@ -19,6 +23,18 @@ export default function StockModal({ ticker, onClose }: Props) {
       .then(setData)
       .finally(() => setLoading(false));
   }, [ticker]);
+
+  const handlePeriodChange = (period: ChartPeriod) => {
+    if (period === chartPeriod) return;
+    setChartPeriod(period);
+    setChartLoading(true);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/stocks/${ticker}?period=${period}`)
+      .then(r => r.json())
+      .then((newData: StockDetail) => {
+        setData(prev => prev ? { ...prev, chart: newData.chart } : prev);
+      })
+      .finally(() => setChartLoading(false));
+  };
 
   const isUp = (data?.change_30d_pct ?? 0) >= 0;
 
@@ -44,7 +60,7 @@ export default function StockModal({ ticker, onClose }: Props) {
               borderTopColor: "var(--accent)", borderRadius: "50%",
               animation: "spin 0.8s linear infinite", margin: "0 auto 12px",
             }} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
           </div>
         ) : data ? (
           <>
@@ -81,18 +97,45 @@ export default function StockModal({ ticker, onClose }: Props) {
               {/* 차트 */}
               {data.chart && data.chart.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>30일 주가 차트</div>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <LineChart data={data.chart}>
-                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a5568" }} axisLine={false} tickLine={false} />
-                      <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "#4a5568" }} axisLine={false} tickLine={false} width={60} />
-                      <Tooltip
-                        contentStyle={{ background: "#1a2235", border: "1px solid #1f2a3d", borderRadius: 8, fontSize: 12 }}
-                        formatter={(v: unknown) => [`$${Number(v).toLocaleString()}`, "가격"]}
-                      />
-                      <Line type="monotone" dataKey="price" stroke={isUp ? "#10b981" : "#ef4444"} strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>주가 차트</div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {(["1d", "7d", "30d"] as ChartPeriod[]).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => handlePeriodChange(p)}
+                          style={{
+                            background: chartPeriod === p ? "var(--accent-dim)" : "transparent",
+                            border: chartPeriod === p ? "1px solid var(--accent-glow)" : "1px solid var(--border)",
+                            borderRadius: 8, padding: "4px 12px",
+                            color: chartPeriod === p ? "var(--accent)" : "var(--text-secondary)",
+                            cursor: "pointer", fontSize: 12, fontWeight: chartPeriod === p ? 600 : 400,
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {p === "1d" ? "1일" : p === "7d" ? "7일" : "30일"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {chartLoading ? (
+                    <div style={{
+                      width: "100%", height: 160, background: "var(--border)",
+                      borderRadius: 8, animation: "pulse 1.5s ease-in-out infinite",
+                    }} />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={160}>
+                      <LineChart data={data.chart}>
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#4a5568" }} axisLine={false} tickLine={false} />
+                        <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "#4a5568" }} axisLine={false} tickLine={false} width={60} />
+                        <Tooltip
+                          contentStyle={{ background: "#1a2235", border: "1px solid #1f2a3d", borderRadius: 8, fontSize: 12 }}
+                          formatter={(v: unknown) => [`$${Number(v).toLocaleString()}`, "가격"]}
+                        />
+                        <Line type="monotone" dataKey="price" stroke={isUp ? "#10b981" : "#ef4444"} strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               )}
 

@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from dotenv import load_dotenv
 
@@ -7,8 +8,17 @@ load_dotenv()
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 NEWS_API_URL = "https://newsapi.org/v2/everything"
 
+_news_cache: dict[str, tuple[list[dict], float]] = {}
+NEWS_CACHE_TTL = 900  # 15분
+
 
 def _fetch_news(q: str, limit: int, language: str = "en") -> list[dict]:
+    cache_key = f"{q}_{limit}_{language}"
+    now = time.time()
+    cached = _news_cache.get(cache_key)
+    if cached and now - cached[1] < NEWS_CACHE_TTL:
+        return cached[0]
+
     try:
         params = {
             "q": q,
@@ -20,17 +30,20 @@ def _fetch_news(q: str, limit: int, language: str = "en") -> list[dict]:
         r = requests.get(NEWS_API_URL, params=params, timeout=10)
         r.raise_for_status()
         articles = r.json().get("articles", [])
-        return [
+        result = [
             {
                 "title": a["title"],
                 "description": a.get("description", ""),
                 "source": a["source"]["name"],
                 "published_at": a["publishedAt"],
                 "url": a["url"],
+                "image_url": a.get("urlToImage", ""),
             }
             for a in articles
             if a.get("title") and "[Removed]" not in a.get("title", "")
         ]
+        _news_cache[cache_key] = (result, time.time())
+        return result
     except Exception:
         return []
 
@@ -70,3 +83,15 @@ def fetch_realestate_news(limit: int = 8) -> list[dict]:
             return results
     # 영어 폴백
     return _fetch_news("Korea real estate housing market", limit)
+
+
+def fetch_commodity_news(limit: int = 8) -> list[dict]:
+    """광물/원자재 뉴스"""
+    results = _fetch_news(
+        "gold OR silver OR copper OR oil OR uranium OR lithium commodity",
+        limit,
+        language="en",
+    )
+    if not results:
+        results = _fetch_news("commodity metals energy", limit)
+    return results

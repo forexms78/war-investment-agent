@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { InvestorSummary, HotStock, RecommendedStock, CoinData, RealEstateIndicator, MoneyFlowAsset, NewsItem } from "@/types";
+import { InvestorSummary, HotStock, RecommendedStock, CoinData, RealEstateIndicator, MoneyFlowAsset, NewsItem, CommodityData } from "@/types";
 import InvestorCard from "@/components/InvestorCard";
 import InvestorModal from "@/components/InvestorModal";
 import StockModal from "@/components/StockModal";
@@ -10,11 +10,12 @@ import RecommendSection from "@/components/RecommendSection";
 import CryptoSection from "@/components/CryptoSection";
 import RealEstateSection from "@/components/RealEstateSection";
 import MoneyFlowSection from "@/components/MoneyFlowSection";
+import CommoditySection from "@/components/CommoditySection";
 import SkeletonCard from "@/components/SkeletonCard";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "stocks" | "crypto" | "realestate";
+type Tab = "stocks" | "crypto" | "realestate" | "commodities";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("stocks");
@@ -24,6 +25,7 @@ export default function Home() {
   const [coins, setCoins] = useState<CoinData[]>([]);
   const [cryptoNews, setCryptoNews] = useState<NewsItem[]>([]);
   const [reData, setReData] = useState<{ indicators: RealEstateIndicator[]; news: NewsItem[] } | null>(null);
+  const [commodityData, setCommodityData] = useState<{ commodities: CommodityData[]; news: NewsItem[] } | null>(null);
   const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number } | null>(null);
   const [loadingInvestors, setLoadingInvestors] = useState(true);
   const [loadingTab, setLoadingTab] = useState(false);
@@ -60,12 +62,19 @@ export default function Home() {
         setReData(data);
       }).finally(() => setLoadingTab(false));
     }
+    if (activeTab === "commodities" && !commodityData) {
+      setLoadingTab(true);
+      fetch(`${API}/commodities`).then(r => r.json()).then(data => {
+        setCommodityData(data);
+      }).finally(() => setLoadingTab(false));
+    }
   }, [activeTab]);
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: "stocks", label: "주식", icon: "📊" },
     { id: "crypto", label: "코인", icon: "₿" },
     { id: "realestate", label: "부동산", icon: "🏠" },
+    { id: "commodities", label: "광물", icon: "⛏️" },
   ];
 
   return (
@@ -177,6 +186,18 @@ export default function Home() {
               </div>
             ) : reData ? (
               <RealEstateSection indicators={reData.indicators} news={reData.news} />
+            ) : null}
+          </div>
+        )}
+        {/* ── 광물 탭 ── */}
+        {activeTab === "commodities" && (
+          <div className="fade-in">
+            {loadingTab ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} height={140} />)}
+              </div>
+            ) : commodityData ? (
+              <CommoditySection commodities={commodityData.commodities || []} news={commodityData.news || []} />
             ) : null}
           </div>
         )}

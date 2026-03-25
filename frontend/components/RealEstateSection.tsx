@@ -1,5 +1,6 @@
 "use client";
 import { RealEstateIndicator, NewsItem } from "@/types";
+import NewsCard from "@/components/NewsCard";
 
 interface Props {
   indicators: RealEstateIndicator[];
@@ -43,20 +44,7 @@ export default function RealEstateSection({ indicators, news }: Props) {
       {news.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {news.map((n, i) => (
-            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-              <div style={{
-                padding: "12px 16px", background: "var(--card)", borderRadius: 10,
-                border: "1px solid var(--border)", transition: "border-color 0.15s",
-              }}
-                onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--accent-glow)"}
-                onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)"}
-              >
-                <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.45, marginBottom: 4 }}>{n.title}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {n.source} · {n.published_at ? new Date(n.published_at).toLocaleDateString("ko-KR") : ""}
-                </div>
-              </div>
-            </a>
+            <NewsCard key={i} news={n} fallbackEmoji="🏠" />
           ))}
         </div>
       ) : (

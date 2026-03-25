@@ -10,10 +10,12 @@ from backend.services.investors import (
 from backend.services.news import (
     fetch_investor_news, fetch_stock_news,
     fetch_crypto_news, fetch_realestate_news,
+    fetch_commodity_news,
 )
 from backend.services.financial import get_stock_data, get_multiple_stocks_parallel
 from backend.services.ai_summary import generate_investor_insight, generate_stock_insight
 from backend.services.coins import get_coin_markets, get_coin_detail
+from backend.services.commodities import get_all_commodities
 
 app = FastAPI(title="Whalyx API", version="2.0.0")
 
@@ -139,10 +141,10 @@ async def recommendations():
 
 
 @app.get("/stocks/{ticker}")
-async def stock_detail(ticker: str):
+async def stock_detail(ticker: str, period: str = "30d"):
     """종목 상세: 주가 차트 + 뉴스 + AI 분석"""
     ticker = ticker.upper()
-    data_task = _run(get_stock_data, ticker)
+    data_task = _run(get_stock_data, ticker, period)
     news_task = _run(fetch_stock_news, ticker)
     data, news = await asyncio.gather(data_task, news_task)
 
@@ -180,6 +182,19 @@ async def crypto_detail(coin_id: str):
         raise HTTPException(status_code=404, detail="코인 데이터를 가져올 수 없습니다")
     news = await _run(fetch_stock_news, detail["symbol"])
     return {**detail, "news": news}
+
+
+# ─────────────────────────────────────────────
+# 광물/원자재
+# ─────────────────────────────────────────────
+
+@app.get("/commodities")
+async def commodities():
+    """광물/원자재 시장 데이터 + 뉴스"""
+    commodities_task = get_all_commodities()
+    news_task = _run(fetch_commodity_news)
+    data, news = await asyncio.gather(commodities_task, news_task)
+    return {"commodities": data, "news": news}
 
 
 # ─────────────────────────────────────────────
