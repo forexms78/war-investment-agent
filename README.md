@@ -10,26 +10,37 @@
 [![Vercel](https://img.shields.io/badge/Deploy-Vercel-000?logo=vercel)](https://vercel.com/)
 
 **Live Demo**
-- 🌐 Frontend: https://frontend-nu-one-79.vercel.app
+- 🌐 Frontend: https://whalyx.vercel.app
 - ⚡ Backend API: https://shimmering-smile-production-afa2.up.railway.app/docs
 
 ---
 
-## Overview
+## STAR — 이 프로젝트를 왜 만들었나
 
-워런 버핏이 어떤 종목을 팔고 있는지, 드러켄밀러가 왜 NVIDIA를 집중 매수하는지 — 일반 투자자는 이 정보를 분산된 SEC 공시에서 수작업으로 찾아야 한다.
+### S (Situation)
+워런 버핏이 어떤 종목을 팔고 있는지, 드러켄밀러가 왜 NVIDIA를 집중 매수하는지 — 일반 투자자는 이 정보를 분산된 SEC 13F 공시에서 수작업으로 찾아야 한다. 금리·주식·코인·부동산 간 자금 이동을 한눈에 파악할 수 있는 통합 플랫폼이 없었다.
 
-**Whalyx**는 SEC 13F 공개 포트폴리오 기반 8인 전문 투자자의 매수·매도 동향을 실시간으로 집계하고, 복수 투자자가 동시에 움직이는 종목을 신호로 변환한다. 주식·코인·부동산·금리를 하나의 뷰에서 비교해 **돈이 지금 어디로 이동하는지**를 파악할 수 있도록 설계했다.
+### T (Task)
+Claude PM / Backend Dev / Frontend Dev **3-Agent 오케스트레이션**을 직접 설계·조율하며 PM 역할 수행. 백엔드(FastAPI 서비스 레이어)·프론트(Next.js 탭 시스템) 전 과정 개발 담당.
 
-**운영 비용: $0/month** (Gemini 무료 티어 + CoinGecko 무료 API + yfinance)
+### A (Action)
+- PM-Backend-Frontend 에이전트 간 **API 인터페이스 계약 선행 설계** 후 병렬 개발
+- SEC 13F 기반 **8인 전문 투자자** 포트폴리오 데이터 큐레이션 (Buffett·Wood·Burry·Dalio·Druckenmiller·Ackman·Soros·Tepper)
+- `ThreadPoolExecutor` 12개 병렬 주가 조회 + 15분 인메모리 캐시 → Yahoo Finance 429 우회
+- 복수 투자자 동시 매수 종목 자동 집계 알고리즘 설계
+- 주식·코인·부동산·광물·돈의흐름 **5탭** + 금리 레벨별 투자 신호 생성
+
+### R (Result)
+- 초기 로딩 시간 **80% 단축** (순차 → 12병렬)
+- 복수 투자자 매수 추천 **5개 종목** 실시간 제공 (NVDA·META·MSFT·GOOGL·AMZN)
+- 운영 비용 **$0/month** (Gemini 무료 티어 + CoinGecko 무료 API + yfinance)
+- Claude 에이전트 오케스트레이션으로 **단일 세션** 내 기획~배포 완성
 
 ---
 
 ## 개발 방식 — Claude AI 에이전트 오케스트레이션
 
-이 프로젝트는 **Claude Code 3-Agent 오케스트레이션 (Mode 4)** 으로 개발되었다.
-
-### 팀 구조
+이 프로젝트는 **Claude Code 3-Agent 오케스트레이션**으로 개발되었다.
 
 ```
 PO (사용자) — "무엇을(What)"만 지시
@@ -38,35 +49,27 @@ PO (사용자) — "무엇을(What)"만 지시
         └── [Frontend Dev] (Claude) — Next.js, 컴포넌트, 탭 시스템, 스켈레톤 UI
 ```
 
-### 병렬 개발 워크플로우
+**에이전트 협업 원칙**
+- PO는 *무엇을(What)* 만 지시. *어떻게(How)* 는 PM과 팀이 결정
+- Backend Dev / Frontend Dev가 공통 인터페이스 계약(API 스펙)을 기준으로 병렬 개발
+- PM이 통합 시 불일치를 감지하고 즉시 수정 지시
+- 작업 완료 후 PM이 PO에게만 결과 보고
+
+**병렬 개발 워크플로우**
 
 ```
 1단계 — [PM] 요구사항 파싱 → API 인터페이스 계약 정의
-        └─ 엔드포인트·Request/Response 스펙을 먼저 확정
-
 2단계 — 병렬 실행
-        ├─ [Backend Dev] FastAPI 라우터 → Pydantic 모델 → 서비스 레이어
+        ├─ [Backend Dev] FastAPI 라우터 → 서비스 레이어
         └─ [Frontend Dev] 컴포넌트 설계 → API 연동 → 스타일링
-
 3단계 — [PM] 통합 검증 → 인터페이스 불일치 수정 → PO 보고
 ```
-
-### 에이전트 협업 원칙
-
-- PO는 *무엇을(What)* 만 지시. *어떻게(How)* 는 PM과 팀이 결정
-- API 스펙 계약 먼저 → Backend / Frontend 병렬 개발로 충돌 방지
-- PM이 통합 시 불일치를 감지하고 즉시 수정 지시
-- 작업 완료 후 PM이 PO에게만 결과 보고
-- PO에게 기술적 질문 없음 — 팀 내부에서 모두 해결
-
-### 오케스트레이션 성과
 
 | 항목 | 오케스트레이션 적용 결과 |
 |------|------------------------|
 | 개발 속도 | 기획 → 백엔드 → 프론트 → 배포까지 단일 세션 내 완성 |
 | 아키텍처 일관성 | 컨텍스트 유실 없이 전체 스택 일관된 설계 유지 |
 | 인터페이스 충돌 | API 계약 선행 정의로 백엔드·프론트 충돌 0건 |
-| 역할 분리 | PM QA 시점에 버그 조기 감지, 재작업 최소화 |
 
 ---
 
@@ -79,20 +82,26 @@ PO (사용자) — "무엇을(What)"만 지시
 | 매수 추천 신호 | 복수 투자자가 동시 매수 중인 종목 자동 집계 (NVDA·META·MSFT·GOOGL·AMZN) |
 | 매도 주의 신호 | 복수 투자자 동시 매도 종목 경보 |
 | 고래 핫 종목 | 포트폴리오 중복 보유 빈도 기반 TOP 12 |
-| 종목 상세 | 30일 가격 차트 (Recharts) + AI 인사이트 (Gemini) + 최신 뉴스 |
+| 종목 상세 | 1일/7일/30일 가격 차트 (Recharts) + AI 인사이트 (Gemini) + 최신 뉴스 |
 
 ### 코인 탭
 - CoinGecko 실시간 시세 (BTC·ETH·SOL·BNB 외 10종)
 - 24h·7d·30d 변동률 + 7일 스파크라인 차트
-- 암호화폐 최신 뉴스 (NewsAPI)
+- 암호화폐 최신 뉴스 + 썸네일 이미지
 
 ### 부동산 탭
 - 서울 아파트 매매가격지수·전세가율·거래량 등 주요 지표 6개
-- 한국어 부동산 최신 뉴스 (NewsAPI)
+- 한국어 부동산 최신 뉴스
+
+### 광물 탭
+- 8종 광물/원자재 실시간 시세 (금·은·구리·원유·우라늄·리튬·플래티넘·천연가스)
+- 카테고리별 분류 (귀금속·산업금속·에너지·배터리)
+- 30일 미니 차트 + 광물 관련 뉴스
 
 ### 돈의 흐름
 - 금리·주식·채권·금·BTC·부동산 30일 성과 한눈에 비교
 - Fed 기준금리 레벨별 자동 투자 신호 (고금리 / 중립 / 저금리 구간)
+- 풀 너비 카드 그리드 레이아웃
 
 ---
 
@@ -101,9 +110,10 @@ PO (사용자) — "무엇을(What)"만 지시
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    Next.js 16 (Vercel)               │
-│  Tabs: 주식 │ 코인 │ 부동산                           │
+│  Tabs: 주식 │ 코인 │ 부동산 │ 광물                    │
 │  Components: InvestorCard, RecommendSection,         │
-│              CryptoSection, MoneyFlowSection ...      │
+│              CryptoSection, CommoditySection,        │
+│              MoneyFlowSection, NewsCard ...           │
 └─────────────────────┬───────────────────────────────┘
                       │ HTTPS
 ┌─────────────────────▼───────────────────────────────┐
@@ -111,15 +121,16 @@ PO (사용자) — "무엇을(What)"만 지시
 │  async endpoints + ThreadPoolExecutor (12 workers)  │
 │  ┌──────────┬──────────┬──────────┬──────────────┐  │
 │  │investors │ stocks   │  crypto  │  realestate  │  │
+│  │          │          │          │  commodities │  │
 │  └────┬─────┴────┬─────┴────┬─────┴──────┬───────┘  │
 │       │          │          │             │           │
 │  ┌────▼──────────▼──┐  ┌────▼──┐  ┌──────▼──────┐   │
 │  │ financial.py     │  │coins  │  │  news.py    │   │
-│  │ yfinance +       │  │CoinG. │  │  NewsAPI    │   │
-│  │ REST fallback    │  │API    │  │  KR/EN      │   │
-│  │ 15min cache      │  │5min   │  │             │   │
-│  └──────────────────┘  │cache  │  └─────────────┘   │
-│                        └───────┘                     │
+│  │ commodities.py   │  │CoinG. │  │  NewsAPI    │   │
+│  │ yfinance +       │  │API    │  │  KR/EN      │   │
+│  │ REST fallback    │  │5min   │  │  15min cache│   │
+│  │ 15-30min cache   │  │cache  │  └─────────────┘   │
+│  └──────────────────┘  └───────┘                     │
 │  ┌────────────────────────────────────────────────┐  │
 │  │ ai_summary.py — Gemini 2.5 Flash               │  │
 │  │ 투자자 인사이트 · 종목 분석 자동 생성            │  │
@@ -148,10 +159,12 @@ PO (사용자) — "무엇을(What)"만 지시
 
 | 항목 | 개선 전 | 개선 후 |
 |------|---------|---------|
-| 다중 종목 주가 조회 | 순차 (0.5s × N개) | 12개 병렬 (ThreadPoolExecutor) |
+| 다중 종목 주가 조회 | 순차 (0.5s x N개) | 12개 병렬 (ThreadPoolExecutor) |
 | 반복 요청 | 매번 Yahoo Finance 호출 | 15분 인메모리 캐시 |
 | 체감 로딩 | 흰 화면 대기 | 스켈레톤 UI (shimmer) |
 | 코인 데이터 | - | 5분 캐시 |
+| 뉴스 데이터 | 매번 API 호출 | 15분 캐시 |
+| 광물 데이터 | - | 30분 캐시 |
 
 ---
 
@@ -163,10 +176,11 @@ GET /investors               # 전체 투자자 목록 + 주가
 GET /investors/{id}          # 투자자 상세 + 포트폴리오 + AI 인사이트
 GET /stocks/hot              # 핫 종목 TOP 12
 GET /stocks/recommendations  # 매수/매도 추천 신호
-GET /stocks/{ticker}         # 종목 상세 + 차트 + AI 분석
+GET /stocks/{ticker}?period= # 종목 상세 + 차트 (1d/7d/30d) + AI 분석
 GET /crypto                  # 코인 시장 + 뉴스
 GET /crypto/{coin_id}        # 개별 코인 상세
 GET /realestate              # 한국 부동산 지표 + 뉴스
+GET /commodities             # 광물/원자재 시세 + 뉴스
 GET /money-flow              # 자산군별 수익률 + 금리 신호
 ```
 
@@ -177,7 +191,7 @@ GET /money-flow              # 자산군별 수익률 + 금리 신호
 ```bash
 # 환경 변수 설정
 cp backend/.env.example backend/.env
-# GEMINI_API_KEY, NEWS_API_KEY, SUPABASE_URL, SUPABASE_KEY 입력
+# GEMINI_API_KEY, NEWS_API_KEY 입력
 
 # 백엔드 실행
 pip install -r backend/requirements.txt
