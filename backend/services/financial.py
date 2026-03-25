@@ -1,8 +1,11 @@
 import time
+import asyncio
+import httpx
 import yfinance as yf
 import requests
 import statistics
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 _session = requests.Session()
 _session.headers.update({
@@ -10,15 +13,15 @@ _session.headers.update({
 })
 yf.utils.requests = _session  # type: ignore
 
-# 인메모리 캐시 (ticker → (data, timestamp))
 _cache: dict[str, tuple[dict, float]] = {}
 CACHE_TTL = 900  # 15분
+_executor = ThreadPoolExecutor(max_workers=12)
 
 
 def _fetch_via_rest(ticker: str) -> dict | None:
     try:
         url = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=30d"
-        r = _session.get(url, timeout=10)
+        r = _session.get(url, timeout=8)
         r.raise_for_status()
         data = r.json()["chart"]["result"][0]
         closes = [c for c in data["indicators"]["quote"][0]["close"] if c is not None]
@@ -56,7 +59,7 @@ def get_stock_data(ticker: str) -> dict:
         t = yf.Ticker(ticker)
         info = t.info or {}
         end = datetime.today()
-        start = end - timedelta(days=30)
+        start = end - timedelta(days=35)
         hist = t.history(start=start.strftime("%Y-%m-%d"), end=end.strftime("%Y-%m-%d"))
         if not hist.empty:
             closes = hist["Close"].tolist()
@@ -92,11 +95,14 @@ def get_stock_data(ticker: str) -> dict:
     return {"ticker": ticker, "name": ticker, "error": "데이터 수집 실패"}
 
 
+async def get_multiple_stocks_parallel(tickers: list[str]) -> dict[str, dict]:
+    """병렬로 여러 종목 데이터를 동시 조회"""
+    loop = asyncio.get_event_loop()
+    tasks = [loop.run_in_executor(_executor, get_stock_data, t) for t in tickers]
+    results = await asyncio.gather(*tasks)
+    return {tickers[i]: results[i] for i in range(len(tickers))}
+
+
 def get_multiple_stocks(tickers: list[str]) -> dict[str, dict]:
-    result = {}
-    for i, ticker in enumerate(tickers):
-        # 캐시 미스인 경우에만 delay로 rate limit 방지
-        if ticker not in _cache and i > 0:
-            time.sleep(0.5)
-        result[ticker] = get_stock_data(ticker)
-    return result
+    """동기 버전 (하위 호환)"""
+    return asyncio.run(get_multiple_stocks_parallel(tickers))

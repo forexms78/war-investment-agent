@@ -2,6 +2,7 @@ export interface HoldingData {
   ticker: string;
   price?: number | null;
   change_1d_pct?: number | null;
+  change_30d_pct?: number | null;
 }
 
 export interface InvestorSummary {
@@ -9,9 +10,11 @@ export interface InvestorSummary {
   name: string;
   title: string;
   firm: string;
+  style: string;
   avatar_initial: string;
   color: string;
   description: string;
+  known_for: string;
   top_holdings: string[];
   recent_moves: string;
   holdings_data: HoldingData[];
@@ -42,6 +45,7 @@ export interface InvestorDetail {
   name: string;
   title: string;
   firm: string;
+  style: string;
   avatar_initial: string;
   color: string;
   description: string;
@@ -79,4 +83,45 @@ export interface HotStock {
   change_30d_pct?: number;
   change_1d_pct?: number;
   sector?: string;
+}
+
+export interface RecommendedStock {
+  ticker: string;
+  name: string;
+  buyers?: string[];
+  sellers?: string[];
+  count: number;
+  current_price?: number | null;
+  change_30d_pct?: number | null;
+}
+
+export interface CoinData {
+  id: string;
+  symbol: string;
+  name: string;
+  current_price: number;
+  market_cap: number;
+  price_change_24h: number;
+  price_change_7d: number;
+  price_change_30d: number;
+  sparkline: number[];
+  image: string;
+}
+
+export interface RealEstateIndicator {
+  label: string;
+  value: string;
+  change: string;
+  unit: string;
+  trend: "up" | "down" | "flat";
+}
+
+export interface MoneyFlowAsset {
+  category: string;
+  name: string;
+  value: string;
+  change_30d: number | null;
+  description: string;
+  color: string;
+  icon: string;
 }

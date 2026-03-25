@@ -70,7 +70,16 @@ export default function InvestorModal({ investorId, onClose }: Props) {
                   {data.avatar_initial}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 18 }}>{data.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 18 }}>{data.name}</span>
+                    {"style" in data && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px",
+                        background: `${data.color}18`, color: data.color,
+                        borderRadius: 6,
+                      }}>{(data as InvestorDetail & { style: string }).style}</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{data.title} · {data.firm}</div>
                 </div>
               </div>

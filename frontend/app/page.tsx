@@ -1,26 +1,72 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { InvestorSummary, HotStock } from "@/types";
+import { InvestorSummary, HotStock, RecommendedStock, CoinData, RealEstateIndicator, MoneyFlowAsset, NewsItem } from "@/types";
 import InvestorCard from "@/components/InvestorCard";
 import InvestorModal from "@/components/InvestorModal";
-import HotStocks from "@/components/HotStocks";
+import StockModal from "@/components/StockModal";
+import HotStocksBar from "@/components/HotStocksBar";
+import RecommendSection from "@/components/RecommendSection";
+import CryptoSection from "@/components/CryptoSection";
+import RealEstateSection from "@/components/RealEstateSection";
+import MoneyFlowSection from "@/components/MoneyFlowSection";
+import SkeletonCard from "@/components/SkeletonCard";
+
+const API = process.env.NEXT_PUBLIC_API_URL;
+
+type Tab = "stocks" | "crypto" | "realestate";
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<Tab>("stocks");
   const [investors, setInvestors] = useState<InvestorSummary[]>([]);
   const [hotStocks, setHotStocks] = useState<HotStock[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState<{ buy: RecommendedStock[]; sell: RecommendedStock[] } | null>(null);
+  const [coins, setCoins] = useState<CoinData[]>([]);
+  const [cryptoNews, setCryptoNews] = useState<NewsItem[]>([]);
+  const [reData, setReData] = useState<{ indicators: RealEstateIndicator[]; news: NewsItem[] } | null>(null);
+  const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number } | null>(null);
+  const [loadingInvestors, setLoadingInvestors] = useState(true);
+  const [loadingTab, setLoadingTab] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<string | null>(null);
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
+  // 투자자 + 핫종목 + 추천 (초기 로드)
   useEffect(() => {
     Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/investors`).then(r => r.json()),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/stocks/hot`).then(r => r.json()),
-    ]).then(([invData, stockData]) => {
+      fetch(`${API}/investors`).then(r => r.json()),
+      fetch(`${API}/stocks/hot`).then(r => r.json()),
+      fetch(`${API}/stocks/recommendations`).then(r => r.json()),
+      fetch(`${API}/money-flow`).then(r => r.json()),
+    ]).then(([invData, stockData, recData, flowData]) => {
       setInvestors(invData.investors || []);
       setHotStocks(stockData.stocks || []);
-    }).finally(() => setLoading(false));
+      setRecommendations(recData);
+      setMoneyFlow(flowData);
+    }).finally(() => setLoadingInvestors(false));
   }, []);
+
+  // 탭 전환 시 데이터 로드
+  useEffect(() => {
+    if (activeTab === "crypto" && coins.length === 0) {
+      setLoadingTab(true);
+      fetch(`${API}/crypto`).then(r => r.json()).then(data => {
+        setCoins(data.coins || []);
+        setCryptoNews(data.news || []);
+      }).finally(() => setLoadingTab(false));
+    }
+    if (activeTab === "realestate" && !reData) {
+      setLoadingTab(true);
+      fetch(`${API}/realestate`).then(r => r.json()).then(data => {
+        setReData(data);
+      }).finally(() => setLoadingTab(false));
+    }
+  }, [activeTab]);
+
+  const tabs: { id: Tab; label: string; icon: string }[] = [
+    { id: "stocks", label: "주식", icon: "📊" },
+    { id: "crypto", label: "코인", icon: "₿" },
+    { id: "realestate", label: "부동산", icon: "🏠" },
+  ];
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
@@ -28,72 +74,113 @@ export default function Home() {
       <header style={{
         borderBottom: "1px solid var(--border)",
         position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(10,14,26,0.95)", backdropFilter: "blur(12px)",
+        background: "rgba(6,10,18,0.96)", backdropFilter: "blur(16px)",
       }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* 로고 */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: 8,
-              background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+              width: 36, height: 36, borderRadius: 10,
+              background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 16, fontWeight: 700,
-            }}>$</div>
+              fontSize: 15, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em",
+              boxShadow: "0 0 16px rgba(99,102,241,0.35)",
+            }}>W</div>
             <div>
-              <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.02em" }}>WhaleTracks</span>
-              <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 8 }}>세계 최고 투자자들의 포트폴리오</span>
+              <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em" }}>WhaleTracks</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Smart Money Tracker</span>
             </div>
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            Track the whales · NewsAPI · Gemini AI
+
+          {/* 탭 네비게이션 */}
+          <nav style={{ display: "flex", gap: 4 }}>
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  background: activeTab === tab.id ? "var(--accent-dim)" : "transparent",
+                  border: activeTab === tab.id ? "1px solid var(--accent-glow)" : "1px solid transparent",
+                  borderRadius: 8, padding: "6px 16px",
+                  color: activeTab === tab.id ? "var(--accent)" : "var(--text-secondary)",
+                  cursor: "pointer", fontSize: 14, fontWeight: activeTab === tab.id ? 600 : 400,
+                  display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
+                }}
+              >
+                <span>{tab.icon}</span>{tab.label}
+              </button>
+            ))}
+          </nav>
+
+          <div style={{ fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
+            SEC 13F · CoinGecko · NewsAPI
           </div>
         </div>
       </header>
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 20px" }}>
-        {/* 히어로 섹션 */}
-        <div style={{ marginBottom: 40, textAlign: "center" }}>
-          <h1 style={{ fontSize: 36, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 12, lineHeight: 1.2 }}>
-            <span style={{ color: "var(--gold)" }}>세계 최고 투자자</span>들은<br />지금 무엇을 사고 있을까?
-          </h1>
-          <p style={{ fontSize: 16, color: "var(--text-secondary)", maxWidth: 500, margin: "0 auto" }}>
-            캐시 우드, 워런 버핏, 젠슨 황 등 8인의 최신 포트폴리오와<br />
-            실시간 뉴스를 한눈에 확인하세요
-          </p>
-        </div>
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
+        {/* 돈의 흐름 바 (항상 표시) */}
+        {moneyFlow && <MoneyFlowSection data={moneyFlow} />}
 
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 80 }}>
-            <div style={{
-              width: 44, height: 44, border: "4px solid var(--border)",
-              borderTopColor: "var(--accent)", borderRadius: "50%",
-              animation: "spin 0.8s linear infinite", margin: "0 auto 16px",
-            }} />
-            <div style={{ color: "var(--text-secondary)" }}>포트폴리오 데이터 로딩 중...</div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          </div>
-        ) : (
-          <>
+        {/* ── 주식 탭 ── */}
+        {activeTab === "stocks" && (
+          <div className="fade-in">
             {/* 핫 종목 */}
-            <HotStocks stocks={hotStocks} />
+            <HotStocksBar stocks={hotStocks} onSelect={setSelectedStock} />
+
+            {/* 매수/매도 추천 */}
+            {recommendations && (
+              <RecommendSection recommendations={recommendations} onSelect={setSelectedStock} />
+            )}
 
             {/* 투자자 그리드 */}
-            <div style={{ marginBottom: 16 }}>
-              <span style={{ fontSize: 18, fontWeight: 700 }}>투자 거장 {investors.length}인</span>
+            <div style={{ marginBottom: 16, display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>전문 투자자</span>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>SEC 13F 공개 포트폴리오 기반</span>
             </div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: 16,
-            }}>
-              {investors.map(inv => (
-                <InvestorCard
-                  key={inv.id}
-                  investor={inv}
-                  onClick={() => setSelectedInvestor(inv.id)}
-                />
-              ))}
-            </div>
-          </>
+
+            {loadingInvestors ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+                {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+                {investors.map(inv => (
+                  <InvestorCard
+                    key={inv.id}
+                    investor={inv}
+                    onClick={() => setSelectedInvestor(inv.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 코인 탭 ── */}
+        {activeTab === "crypto" && (
+          <div className="fade-in">
+            {loadingTab ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} height={120} />)}
+              </div>
+            ) : (
+              <CryptoSection coins={coins} news={cryptoNews} />
+            )}
+          </div>
+        )}
+
+        {/* ── 부동산 탭 ── */}
+        {activeTab === "realestate" && (
+          <div className="fade-in">
+            {loadingTab ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} height={80} />)}
+              </div>
+            ) : reData ? (
+              <RealEstateSection indicators={reData.indicators} news={reData.news} />
+            ) : null}
+          </div>
         )}
       </main>
 
@@ -102,6 +189,9 @@ export default function Home() {
           investorId={selectedInvestor}
           onClose={() => setSelectedInvestor(null)}
         />
+      )}
+      {selectedStock && (
+        <StockModal ticker={selectedStock} onClose={() => setSelectedStock(null)} />
       )}
     </div>
   );
