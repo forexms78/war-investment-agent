@@ -10,10 +10,10 @@ from backend.services.investors import (
 from backend.services.news import (
     fetch_investor_news, fetch_stock_news,
     fetch_crypto_news, fetch_realestate_news,
-    fetch_commodity_news,
+    fetch_commodity_news, fetch_bond_news, fetch_market_news_all,
 )
 from backend.services.financial import get_stock_data, get_multiple_stocks_parallel
-from backend.services.ai_summary import generate_investor_insight, generate_stock_insight
+from backend.services.ai_summary import generate_investor_insight, generate_stock_insight, generate_news_analysis
 from backend.services.coins import get_coin_markets, get_coin_detail
 from backend.services.commodities import get_all_commodities
 from backend.services.whale_signal import get_whale_signal
@@ -310,6 +310,51 @@ async def money_flow():
     kor = await asyncio.get_event_loop().run_in_executor(_executor, get_korea_rates)
     fed_rate = await asyncio.get_event_loop().run_in_executor(_executor, get_fed_rate)
     return {"assets": assets, "rate_signal": signal, "fed_rate": fed_rate, "korea_rates": kor}
+
+
+# ─────────────────────────────────────────────
+# 채권 (Bonds)
+# ─────────────────────────────────────────────
+
+@app.get("/bonds")
+async def bonds():
+    """채권 시장 데이터 (TLT, 10Y/3M 국채 금리) + 뉴스"""
+    bond_tickers = ["^TNX", "^IRX", "TLT"]
+    prices_task = get_multiple_stocks_parallel(bond_tickers)
+    news_task = _run(fetch_bond_news)
+    prices, news = await asyncio.gather(prices_task, news_task)
+
+    tnx = prices.get("^TNX", {})
+    irx = prices.get("^IRX", {})
+    tlt = prices.get("TLT", {})
+    fed_rate = await asyncio.get_event_loop().run_in_executor(_executor, get_fed_rate)
+
+    data = {
+        "fed_rate": fed_rate,
+        "yield_10y": tnx.get("current_price"),
+        "yield_10y_change": tnx.get("change_30d_pct"),
+        "yield_3m": irx.get("current_price"),
+        "yield_3m_change": irx.get("change_30d_pct"),
+        "tlt_price": tlt.get("current_price"),
+        "tlt_change_30d": tlt.get("change_30d_pct"),
+        "tlt_change_1d": tlt.get("change_1d_pct"),
+        "curve_inverted": (
+            (tnx.get("current_price") or 0) < (irx.get("current_price") or 0)
+        ),
+    }
+    return {"data": data, "news": news}
+
+
+# ─────────────────────────────────────────────
+# AI 뉴스 분석
+# ─────────────────────────────────────────────
+
+@app.get("/news-ai")
+async def news_ai():
+    """전 자산군 뉴스 수집 → Gemini 2.5 Flash 종합 분석"""
+    news_by_category = await _run(fetch_market_news_all)
+    result = await _run(generate_news_analysis, news_by_category)
+    return result
 
 
 # ─────────────────────────────────────────────

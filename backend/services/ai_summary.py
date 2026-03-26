@@ -1,3 +1,6 @@
+import json
+import re
+import time
 from backend.utils.gemini import call_gemini
 
 SYSTEM = """
@@ -41,3 +44,99 @@ def generate_stock_insight(ticker: str, name: str, change_pct: float, news_title
         return call_gemini(prompt, SYSTEM)
     except Exception:
         return f"{name} 종목 분석 중입니다."
+
+
+_news_ai_cache: tuple[dict, float] | None = None
+_NEWS_AI_TTL = 1800  # 30분
+
+
+def generate_news_analysis(news_by_category: dict[str, list[dict]]) -> dict:
+    global _news_ai_cache
+    now = time.time()
+    if _news_ai_cache and now - _news_ai_cache[1] < _NEWS_AI_TTL:
+        return _news_ai_cache[0]
+
+    # 뉴스 목록 플래튼 + 인덱스 부여
+    all_news: list[dict] = []
+    for category, articles in news_by_category.items():
+        for a in articles:
+            all_news.append({**a, "category": category})
+
+    # Gemini에 보낼 헤드라인 (최대 20개)
+    top = all_news[:20]
+    headlines = "\n".join(
+        f"[{i}] ({item['category']}) {item['title']}"
+        for i, item in enumerate(top)
+    )
+
+    prompt = f"""다음은 글로벌 금융 시장 최신 뉴스입니다.
+
+{headlines}
+
+아래 JSON 형식으로만 응답하세요. 코드블록 없이 순수 JSON만:
+{{
+  "sentiment": "Bullish|Neutral|Bearish",
+  "sentiment_score": 0~100,
+  "summary": "3~4문장 한국어 종합 분석",
+  "themes": [
+    {{"title": "핵심 테마 제목", "detail": "한국어 설명 1~2문장", "assets": ["주식","채권"]}}
+  ],
+  "articles": [
+    {{"idx": 0, "sentiment": "positive|negative|neutral", "summary": "한국어 20자 이내 요약"}}
+  ]
+}}
+themes는 3개, articles는 뉴스 전체 인덱스에 대해 작성하세요."""
+
+    try:
+        raw = call_gemini(prompt, SYSTEM)
+        # JSON 추출 (마크다운 코드블록 방어)
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        parsed = json.loads(match.group() if match else raw)
+
+        # articles 인덱스로 뉴스에 ai_summary 매핑
+        ai_map = {a["idx"]: a for a in parsed.get("articles", [])}
+        enriched = []
+        for i, item in enumerate(top):
+            ai_info = ai_map.get(i, {})
+            enriched.append({
+                "title": item["title"],
+                "source": item.get("source", ""),
+                "published_at": item.get("published_at", ""),
+                "url": item.get("url", ""),
+                "image_url": item.get("image_url", ""),
+                "category": item["category"],
+                "ai_summary": ai_info.get("summary", ""),
+                "sentiment": ai_info.get("sentiment", "neutral"),
+            })
+
+        result = {
+            "sentiment": parsed.get("sentiment", "Neutral"),
+            "sentiment_score": parsed.get("sentiment_score", 50),
+            "summary": parsed.get("summary", ""),
+            "themes": parsed.get("themes", []),
+            "news": enriched,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        _news_ai_cache = (result, now)
+        return result
+    except Exception as e:
+        return {
+            "sentiment": "Neutral",
+            "sentiment_score": 50,
+            "summary": "뉴스 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            "themes": [],
+            "news": [
+                {
+                    "title": n["title"],
+                    "source": n.get("source", ""),
+                    "published_at": n.get("published_at", ""),
+                    "url": n.get("url", ""),
+                    "image_url": n.get("image_url", ""),
+                    "category": n["category"],
+                    "ai_summary": "",
+                    "sentiment": "neutral",
+                }
+                for n in top
+            ],
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }

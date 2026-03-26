@@ -136,7 +136,7 @@ export default function WhaleSignalSection({
   onTabChange,
 }: {
   data: WhaleSignal;
-  onTabChange?: (tab: Tab) => void;
+  onTabChange?: (tab: string) => void;
 }) {
   // 전체 평균 점수
   const avgScore = data.signals.length

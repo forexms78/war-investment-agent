@@ -158,7 +158,7 @@ PO (사용자) — "무엇을(What)"만 지시
 | 코인 (CoinGecko) | 5분 | 실시간 시세 중요도 높음 |
 | 광물 (yfinance) | 30분 | 장중 변동 적음 |
 | 뉴스 (NewsAPI) | 15분 | 무료 티어 100 req/day 절약 |
-| Whale Signal | 30분 | Gemini API 비용 최소화 |
+| Whale Signal | 6시간 | Gemini API 비용 최소화 (분당 limit 우회) |
 | 한국은행 금리 | 1시간 | 금리·환율은 일 1회 업데이트 |
 
 > 캐시는 모두 **인메모리(dict)**. Railway 재시작 시 초기화되며, 콜드 스타트 후 첫 요청에서 외부 API 호출.

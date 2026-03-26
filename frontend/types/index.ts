@@ -172,3 +172,41 @@ export interface MoneyFlowData {
   fed_rate: number;
   korea_rates?: KoreaRates;
 }
+
+export interface BondData {
+  fed_rate: number;
+  yield_10y: number | null;
+  yield_10y_change: number | null;
+  yield_3m: number | null;
+  yield_3m_change: number | null;
+  tlt_price: number | null;
+  tlt_change_30d: number | null;
+  tlt_change_1d: number | null;
+  curve_inverted: boolean;
+}
+
+export interface NewsAIItem {
+  title: string;
+  source: string;
+  published_at: string;
+  url: string;
+  image_url?: string;
+  category: string;
+  ai_summary: string;
+  sentiment: "positive" | "negative" | "neutral";
+}
+
+export interface NewsAITheme {
+  title: string;
+  detail: string;
+  assets: string[];
+}
+
+export interface NewsAIData {
+  sentiment: "Bullish" | "Neutral" | "Bearish";
+  sentiment_score: number;
+  summary: string;
+  themes: NewsAITheme[];
+  news: NewsAIItem[];
+  updated_at: string;
+}

@@ -105,3 +105,26 @@ def fetch_commodity_news(limit: int = 8) -> list[dict]:
     if not results:
         results = _fetch_news("commodity metals energy", limit)
     return results
+
+
+def fetch_bond_news(limit: int = 8) -> list[dict]:
+    """채권/금리 뉴스"""
+    results = _fetch_news(
+        "treasury bonds yield interest rate Fed Federal Reserve",
+        limit,
+        language="en",
+    )
+    if not results:
+        results = _fetch_news("bond yield treasury", limit)
+    return results
+
+
+def fetch_market_news_all() -> dict[str, list[dict]]:
+    """AI 뉴스 분석용 — 카테고리별 최신 뉴스 수집"""
+    return {
+        "주식": _fetch_news("stock market S&P500 earnings Wall Street", 6),
+        "코인": _fetch_news("bitcoin ethereum crypto cryptocurrency", 6),
+        "부동산": _fetch_news("real estate housing market mortgage", 5),
+        "광물": _fetch_news("gold silver copper oil commodity", 5),
+        "채권": _fetch_news("treasury bond yield Fed interest rate", 5),
+    }
