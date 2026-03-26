@@ -1,4 +1,5 @@
 "use client";
+import { PieChart, Pie, Cell } from "recharts";
 import { WhaleSignal } from "@/types";
 
 type Tab = "signal" | "stocks" | "crypto" | "realestate" | "commodities";
@@ -20,73 +21,73 @@ function scoreInfo(score: number) {
   return              { label: "Super Sell",  color: "#ef4444", bg: "rgba(239,68,68,0.1)" };
 }
 
-// ── 반원형 게이지 SVG — 이미지2 스타일 (파랑→보라→빨강 그라디언트 + 흰 원 위치 표시) ──
+// ── 반원형 게이지 (recharts PieChart) ──
 function SemiGauge({ score }: { score: number }) {
-  const cx = 100, cy = 88, r = 66, sw = 13;
+  const W = 200, H = 112;
+  const CX = W / 2, CY = H;
+  const OR = 82, IR = 54;
+  const MR = (OR + IR) / 2;
+  const SEGS = 20;
+  const info = scoreInfo(score);
+  const data = Array.from({ length: SEGS }, () => ({ v: 1 }));
+  const filled = Math.round(score * SEGS / 100);
 
-  function arcPath(s1: number, s2: number): string {
-    if (s1 >= s2) return "";
-    const a1 = (1 - s1 / 100) * Math.PI;
-    const a2 = (1 - s2 / 100) * Math.PI;
-    const x1 = (cx + r * Math.cos(a1)).toFixed(2);
-    const y1 = (cy - r * Math.sin(a1)).toFixed(2);
-    const x2 = (cx + r * Math.cos(a2)).toFixed(2);
-    const y2 = (cy - r * Math.sin(a2)).toFixed(2);
-    const large = (s2 - s1) > 50 ? 1 : 0;
-    return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 0 ${x2} ${y2}`;
+  function segColor(i: number): string {
+    const t = i / (SEGS - 1);
+    let R, G, B;
+    if (t < 0.5) {
+      const tt = t * 2;
+      R = Math.round(59 + (139 - 59) * tt);
+      G = Math.round(130 + (92 - 130) * tt);
+      B = 246;
+    } else {
+      const tt = (t - 0.5) * 2;
+      R = Math.round(139 + (239 - 139) * tt);
+      G = Math.round(92 + (68 - 92) * tt);
+      B = Math.round(246 + (68 - 246) * tt);
+    }
+    return `rgb(${R},${G},${B})`;
   }
 
-  const info = scoreInfo(score);
-
-  // 현재 점수의 위치 (흰 원 표시용)
-  const pa = (1 - score / 100) * Math.PI;
-  const px = (cx + r * Math.cos(pa)).toFixed(2);
-  const py = (cy - r * Math.sin(pa)).toFixed(2);
-
-  // 눈금 도트 11개 (이미지2의 작은 점들)
-  const dotScores = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+  // 지시자 위치 계산 (score=0 → 좌측 끝, score=100 → 우측 끝)
+  const angle = (1 - score / 100) * Math.PI;
+  const ix = CX + MR * Math.cos(angle);
+  const iy = CY - MR * Math.sin(angle);
 
   return (
-    <svg viewBox="0 0 200 108" style={{ width: "100%", maxWidth: 200, display: "block" }}>
-      <defs>
-        {/* 파랑→보라→빨강 수평 그라디언트 (호의 좌→중→우와 정확히 매핑) */}
-        <linearGradient id="gaugeGrad" x1={cx - r} y1="0" x2={cx + r} y2="0" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#3b82f6" />
-          <stop offset="50%"  stopColor="#8b5cf6" />
-          <stop offset="100%" stopColor="#ef4444" />
-        </linearGradient>
-        {/* 흰 원 그림자 */}
-        <filter id="dotShadow" x="-80%" y="-80%" width="260%" height="260%">
-          <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000000" floodOpacity="0.18" />
-        </filter>
-      </defs>
-
-      {/* 배경 트랙 (연한 회색) */}
-      <path d={arcPath(0, 100)} fill="none" stroke="#d1dce8" strokeWidth={sw + 2} strokeLinecap="butt" />
-
-      {/* 그라디언트 호 */}
-      <path d={arcPath(0, 100)} fill="none" stroke="url(#gaugeGrad)" strokeWidth={sw} strokeLinecap="butt" />
-
-      {/* 눈금 도트 (흰 원, 호 위에 오버레이) */}
-      {dotScores.map(s => {
-        const da = (1 - s / 100) * Math.PI;
-        const dx = (cx + r * Math.cos(da)).toFixed(2);
-        const dy = (cy - r * Math.sin(da)).toFixed(2);
-        return <circle key={s} cx={dx} cy={dy} r={2.5} fill="#ffffff" />;
-      })}
-
-      {/* 현재 점수 위치 — 흰 원 + 컬러 내부 원 */}
-      <circle cx={px} cy={py} r={10} fill="#ffffff" filter="url(#dotShadow)" />
-      <circle cx={px} cy={py} r={5}  fill={info.color} />
-
-      {/* 중앙 점수 숫자 (크고 굵게) */}
-      <text x={cx} y={cy + 14} textAnchor="middle" fontSize={32} fontWeight="800" fill={info.color}>{score}</text>
-
-      {/* 0 / 50 / 100 레이블 */}
-      <text x={cx - r + 4}  y={cy + 20} textAnchor="middle" fontSize={9} fill="#94a3b8">0</text>
-      <text x={cx}          y={cy - r - 6} textAnchor="middle" fontSize={9} fill="#94a3b8">50</text>
-      <text x={cx + r - 4}  y={cy + 20} textAnchor="middle" fontSize={9} fill="#94a3b8">100</text>
-    </svg>
+    <div style={{ position: "relative", width: W, height: H }}>
+      <PieChart width={W} height={H} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <Pie
+          data={data} dataKey="v"
+          cx={CX} cy={CY}
+          startAngle={180} endAngle={0}
+          innerRadius={IR} outerRadius={OR}
+          strokeWidth={0} isAnimationActive={false} paddingAngle={0.6}
+        >
+          {data.map((_, i) => (
+            <Cell key={i} fill={i < filled ? segColor(i) : "#d1dce8"} />
+          ))}
+        </Pie>
+      </PieChart>
+      {/* 위치 표시 원 */}
+      <div style={{
+        position: "absolute",
+        left: ix, top: iy,
+        transform: "translate(-50%, -50%)",
+        width: 18, height: 18, borderRadius: "50%",
+        background: "#ffffff", border: `3px solid ${info.color}`,
+        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+        pointerEvents: "none", zIndex: 1,
+      }} />
+      {/* 점수 숫자 */}
+      <div style={{
+        position: "absolute", bottom: 10, left: 0, right: 0,
+        textAlign: "center", fontSize: 30, fontWeight: 800,
+        color: info.color, lineHeight: 1, pointerEvents: "none",
+      }}>{score}</div>
+      <div style={{ position: "absolute", bottom: 2, left: 10, fontSize: 10, color: "#94a3b8" }}>0</div>
+      <div style={{ position: "absolute", bottom: 2, right: 10, fontSize: 10, color: "#94a3b8" }}>100</div>
+    </div>
   );
 }
 
