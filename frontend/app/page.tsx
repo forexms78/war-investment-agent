@@ -47,7 +47,9 @@ export default function Home() {
       setHotStocks(stockData.stocks || []);
       setRecommendations(recData);
       setMoneyFlow(flowData);
-      setWhaleSignal(signalData);
+      if (signalData?.signals && Array.isArray(signalData.signals)) {
+        setWhaleSignal(signalData);
+      }
     }).finally(() => setLoadingInvestors(false));
   }, []);
 
@@ -93,11 +95,7 @@ export default function Home() {
         <div className="header-inner" style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 60, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           {/* 로고 */}
           <div className="header-top-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img
-              src="/whalyx-icon-round.png"
-              alt="Whalyx"
-              style={{ width: 38, height: 38, borderRadius: 10, objectFit: "cover", boxShadow: "0 0 14px rgba(91,158,201,0.3)" }}
-            />
+            <span style={{ fontSize: 32, lineHeight: 1, filter: "drop-shadow(0 0 8px rgba(91,158,201,0.4))" }}>🐋</span>
             <div>
               <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em" }}>Whalyx</span>
               <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 8, letterSpacing: "0.04em", textTransform: "uppercase" }}>Whale Tracker</span>
