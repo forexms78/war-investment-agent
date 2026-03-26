@@ -5,6 +5,7 @@ import NewsCard from "@/components/NewsCard";
 interface Props {
   coins: CoinData[];
   news: NewsItem[];
+  usd_krw?: number | null;
 }
 
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -25,11 +26,17 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
-export default function CryptoSection({ coins, news }: Props) {
+export default function CryptoSection({ coins, news, usd_krw }: Props) {
   const formatPrice = (p: number) => {
     if (p >= 1000) return `$${p.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
     if (p >= 1) return `$${p.toFixed(2)}`;
     return `$${p.toFixed(4)}`;
+  };
+  const formatKrw = (p: number) => {
+    const krw = p * (usd_krw ?? 0);
+    if (krw >= 1e8) return `₩${(krw / 1e8).toFixed(2)}억`;
+    if (krw >= 1e4) return `₩${Math.round(krw / 1000).toLocaleString("ko-KR")}천`;
+    return `₩${Math.round(krw).toLocaleString("ko-KR")}`;
   };
   const formatMCap = (mc: number) => {
     if (mc >= 1e12) return `$${(mc / 1e12).toFixed(2)}T`;
@@ -79,7 +86,10 @@ export default function CryptoSection({ coins, news }: Props) {
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 3 }}>{formatPrice(coin.current_price)}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>{formatPrice(coin.current_price)}</div>
+                  {usd_krw && (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 2 }}>{formatKrw(coin.current_price)}</div>
+                  )}
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>시총 {formatMCap(coin.market_cap)}</div>
                 </div>
                 <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 3 }}>

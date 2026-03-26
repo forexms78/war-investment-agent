@@ -186,7 +186,7 @@ export default function Home() {
                 {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} height={120} />)}
               </div>
             ) : (
-              <CryptoSection coins={coins} news={cryptoNews} />
+              <CryptoSection coins={coins} news={cryptoNews} usd_krw={moneyFlow?.korea_rates?.usd_krw} />
             )}
           </div>
         )}
@@ -211,7 +211,7 @@ export default function Home() {
                 {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} height={140} />)}
               </div>
             ) : commodityData ? (
-              <CommoditySection commodities={commodityData.commodities || []} news={commodityData.news || []} />
+              <CommoditySection commodities={commodityData.commodities || []} news={commodityData.news || []} usd_krw={moneyFlow?.korea_rates?.usd_krw} />
             ) : null}
           </div>
         )}

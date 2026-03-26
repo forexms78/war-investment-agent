@@ -6,6 +6,7 @@ import NewsCard from "@/components/NewsCard";
 interface Props {
   commodities: CommodityData[];
   news: NewsItem[];
+  usd_krw?: number | null;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -15,11 +16,17 @@ const CATEGORY_COLORS: Record<string, string> = {
   "배터리": "#8B5CF6",
 };
 
-export default function CommoditySection({ commodities, news }: Props) {
+export default function CommoditySection({ commodities, news, usd_krw }: Props) {
   const formatPrice = (p: number) => {
     if (p >= 1000) return `$${p.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
     if (p >= 1) return `$${p.toFixed(2)}`;
     return `$${p.toFixed(4)}`;
+  };
+  const formatKrw = (p: number) => {
+    const krw = p * (usd_krw ?? 0);
+    if (krw >= 1e8) return `₩${(krw / 1e8).toFixed(1)}억`;
+    if (krw >= 1e4) return `₩${Math.round(krw / 1000).toLocaleString("ko-KR")}천`;
+    return `₩${Math.round(krw).toLocaleString("ko-KR")}`;
   };
 
   return (
@@ -93,9 +100,12 @@ export default function CommoditySection({ commodities, news }: Props) {
               {/* 가격 + 변동률 */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 3 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>
                     {noPrice ? <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>데이터 로딩 중...</span> : formatPrice(item.current_price)}
                   </div>
+                  {!noPrice && usd_krw && (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 2 }}>{formatKrw(item.current_price)}</div>
+                  )}
                   <div style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1.4, maxWidth: 160 }}>{item.description}</div>
                 </div>
                 <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 3 }}>
