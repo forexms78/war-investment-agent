@@ -30,18 +30,28 @@ def _fetch_news(q: str, limit: int, language: str = "en") -> list[dict]:
         r = requests.get(NEWS_API_URL, params=params, timeout=10)
         r.raise_for_status()
         articles = r.json().get("articles", [])
-        result = [
-            {
-                "title": a["title"],
+        seen_urls: set[str] = set()
+        seen_titles: set[str] = set()
+        result = []
+        for a in articles:
+            title = a.get("title", "")
+            url = a.get("url", "")
+            if not title or "[Removed]" in title:
+                continue
+            # URL 또는 제목 앞 40자 기준 중복 제거
+            title_key = title[:40].lower()
+            if url in seen_urls or title_key in seen_titles:
+                continue
+            seen_urls.add(url)
+            seen_titles.add(title_key)
+            result.append({
+                "title": title,
                 "description": a.get("description", ""),
                 "source": a["source"]["name"],
                 "published_at": a["publishedAt"],
-                "url": a["url"],
+                "url": url,
                 "image_url": a.get("urlToImage", ""),
-            }
-            for a in articles
-            if a.get("title") and "[Removed]" not in a.get("title", "")
-        ]
+            })
         _news_cache[cache_key] = (result, time.time())
         return result
     except Exception:

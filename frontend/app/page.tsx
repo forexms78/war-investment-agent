@@ -137,7 +137,7 @@ export default function Home() {
                 {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} height={180} />)}
               </div>
             ) : (
-              <WhaleSignalSection data={whaleSignal} />
+              <WhaleSignalSection data={whaleSignal} onTabChange={setActiveTab} />
             )}
             {moneyFlow && <MoneyFlowSection data={moneyFlow} korea_rates={moneyFlow.korea_rates} />}
           </div>

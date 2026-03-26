@@ -1,7 +1,17 @@
 "use client";
 import { WhaleSignal } from "@/types";
 
-export default function WhaleSignalSection({ data }: { data: WhaleSignal }) {
+type Tab = "signal" | "stocks" | "crypto" | "realestate" | "commodities";
+
+const ASSET_TAB_MAP: Record<string, Tab | null> = {
+  "주식":   "stocks",
+  "코인":   "crypto",
+  "부동산": "realestate",
+  "금/광물": "commodities",
+  "채권":   null,
+};
+
+export default function WhaleSignalSection({ data, onTabChange }: { data: WhaleSignal; onTabChange?: (tab: Tab) => void }) {
   return (
     <div>
       {/* 메인 헤드라인 배너 */}
@@ -27,19 +37,28 @@ export default function WhaleSignalSection({ data }: { data: WhaleSignal }) {
       {/* 자산군별 신호 카드 */}
       <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>자산군 투자 신호</div>
       <div className="grid-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12, marginBottom: 32 }}>
-        {data.signals.map((s) => (
+        {data.signals.map((s) => {
+          const targetTab = ASSET_TAB_MAP[s.asset];
+          return (
           <div key={s.asset} style={{
             background: "var(--card)", border: "1px solid var(--border)",
             borderRadius: 14, padding: "18px 20px",
             borderLeft: `4px solid ${s.color}`,
             transition: "all 0.15s",
+            cursor: targetTab ? "pointer" : "default",
           }}
+            onClick={() => targetTab && onTabChange?.(targetTab)}
             onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--card-hover)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--card)"; }}
           >
             {/* 자산명 + 뱃지 */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>{s.asset}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 16, fontWeight: 700 }}>{s.asset}</span>
+                {targetTab && (
+                  <span style={{ fontSize: 11, color: "var(--text-muted)" }}>→</span>
+                )}
+              </div>
               <span style={{
                 fontSize: 12, fontWeight: 800, padding: "4px 10px", borderRadius: 20,
                 color: s.color,
@@ -104,7 +123,8 @@ export default function WhaleSignalSection({ data }: { data: WhaleSignal }) {
               </div>
             )}
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );
