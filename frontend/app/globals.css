@@ -135,6 +135,10 @@ a { color: inherit; }
   .recommend-grid {
     grid-template-columns: 1fr !important;
   }
+  /* 웨일 시그널 게이지 배너 */
+  .whale-banner {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 @media (max-width: 480px) {

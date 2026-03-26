@@ -35,7 +35,6 @@ export default function CryptoSection({ coins, news, usd_krw }: Props) {
   const formatKrw = (p: number) => {
     const krw = p * (usd_krw ?? 0);
     if (krw >= 1e8) return `₩${(krw / 1e8).toFixed(2)}억`;
-    if (krw >= 1e4) return `₩${Math.round(krw / 1000).toLocaleString("ko-KR")}천`;
     return `₩${Math.round(krw).toLocaleString("ko-KR")}`;
   };
   const formatMCap = (mc: number) => {

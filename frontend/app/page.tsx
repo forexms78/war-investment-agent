@@ -33,7 +33,7 @@ export default function Home() {
   const [loadingTab, setLoadingTab] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
 
   // 테마 토글
   const toggleTheme = () => {
