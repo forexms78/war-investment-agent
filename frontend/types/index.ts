@@ -140,10 +140,12 @@ export interface MoneyFlowAsset {
 
 export interface AssetSignal {
   asset: string;
-  label: "Strong Buy" | "Buy" | "Neutral" | "Avoid";
+  label: "Strong Buy" | "Buy" | "Neutral" | "Avoid" | "Super Sell";
+  badge: string;
   score: number;
   color: string;
   picks: string[];
+  sell_warns: string[];
 }
 
 export interface WhaleSignal {
@@ -152,4 +154,18 @@ export interface WhaleSignal {
   ai_insight: string;
   fed_rate: number;
   updated_at: string;
+}
+
+export interface KoreaRates {
+  base_rate: number | null;
+  treasury_3y: number | null;
+  cd_rate: number | null;
+  updated_at: string;
+}
+
+export interface MoneyFlowData {
+  assets: MoneyFlowAsset[];
+  rate_signal: { level: string; message: string };
+  fed_rate: number;
+  korea_rates?: KoreaRates;
 }

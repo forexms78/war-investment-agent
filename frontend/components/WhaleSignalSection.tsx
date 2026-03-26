@@ -37,36 +37,58 @@ export default function WhaleSignalSection({ data }: { data: WhaleSignal }) {
             onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--card-hover)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--card)"; }}
           >
-            {/* 자산명 + 라벨 */}
+            {/* 자산명 + 뱃지 */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{s.asset}</div>
               <span style={{
-                fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 20,
+                fontSize: 12, fontWeight: 800, padding: "4px 10px", borderRadius: 20,
                 color: s.color,
                 background: `${s.color}1a`,
-                border: `1px solid ${s.color}33`,
+                border: `1px solid ${s.color}55`,
+                letterSpacing: "0.04em",
               }}>
-                {s.label}
+                {s.badge ?? s.label}
               </span>
             </div>
 
             {/* 점수 바 */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
-                <span>투자 매력도</span>
+                <span>{s.label === "Super Sell" ? "매도 압력" : "투자 매력도"}</span>
                 <span style={{ color: s.color, fontWeight: 600 }}>{s.score}/100</span>
               </div>
-              <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", width: `${s.score}%`,
-                  background: s.color, borderRadius: 3,
-                  transition: "width 0.6s ease",
-                }} />
+              <div style={{ height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden", display: "flex" }}>
+                {s.label === "Super Sell" ? (
+                  <>
+                    <div style={{ flex: s.score }} />
+                    <div style={{ flex: 100 - s.score, background: s.color, borderRadius: 3, transition: "flex 0.6s ease" }} />
+                  </>
+                ) : (
+                  <div style={{ height: "100%", width: `${s.score}%`, background: s.color, borderRadius: 3, transition: "width 0.6s ease" }} />
+                )}
               </div>
             </div>
 
-            {/* 추천 종목 */}
-            {s.picks.length > 0 && (
+            {/* Super Sell: 매도 경고 종목 */}
+            {s.label === "Super Sell" && s.sell_warns && s.sell_warns.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, color: "#ef4444", marginBottom: 6, fontWeight: 600 }}>보유 중이라면 매도 검토</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {s.sell_warns.map(w => (
+                    <span key={w} style={{
+                      fontSize: 11, padding: "3px 8px", borderRadius: 6,
+                      background: "rgba(239,68,68,0.1)", color: "#ef4444",
+                      border: "1px solid rgba(239,68,68,0.3)",
+                    }}>
+                      {w}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 일반 추천 종목 (SS 제외) */}
+            {s.label !== "Super Sell" && s.picks && s.picks.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>추천 종목/ETF</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
