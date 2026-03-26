@@ -17,6 +17,7 @@ from backend.services.ai_summary import generate_investor_insight, generate_stoc
 from backend.services.coins import get_coin_markets, get_coin_detail
 from backend.services.commodities import get_all_commodities
 from backend.services.whale_signal import get_whale_signal
+from backend.services.korea_rates import get_korea_rates
 
 app = FastAPI(title="Whalyx API", version="2.0.0")
 
@@ -305,7 +306,19 @@ async def money_flow():
     else:
         signal = {"level": "low", "message": "저금리 구간: 성장주·코인·부동산 강세 환경. 리스크 자산 비중 확대 고려."}
 
-    return {"assets": assets, "rate_signal": signal, "fed_rate": 5.25}
+    kor = await asyncio.get_event_loop().run_in_executor(_executor, get_korea_rates)
+    return {"assets": assets, "rate_signal": signal, "fed_rate": 5.25, "korea_rates": kor}
+
+
+# ─────────────────────────────────────────────
+# 한국 금리 (Korea Rates)
+# ─────────────────────────────────────────────
+
+@app.get("/korea-rates")
+async def korea_rates():
+    """한국은행 ECOS API — 기준금리, 국고채 3년물, CD 91일물"""
+    data = await asyncio.get_event_loop().run_in_executor(_executor, get_korea_rates)
+    return data
 
 
 # ─────────────────────────────────────────────

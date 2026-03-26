@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { InvestorSummary, HotStock, RecommendedStock, CoinData, RealEstateIndicator, MoneyFlowAsset, NewsItem, CommodityData, WhaleSignal } from "@/types";
+import { InvestorSummary, HotStock, RecommendedStock, CoinData, RealEstateIndicator, MoneyFlowAsset, NewsItem, CommodityData, WhaleSignal, KoreaRates } from "@/types";
 import InvestorCard from "@/components/InvestorCard";
 import InvestorModal from "@/components/InvestorModal";
 import StockModal from "@/components/StockModal";
@@ -27,7 +27,7 @@ export default function Home() {
   const [cryptoNews, setCryptoNews] = useState<NewsItem[]>([]);
   const [reData, setReData] = useState<{ indicators: RealEstateIndicator[]; news: NewsItem[] } | null>(null);
   const [commodityData, setCommodityData] = useState<{ commodities: CommodityData[]; news: NewsItem[] } | null>(null);
-  const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number } | null>(null);
+  const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number; korea_rates?: KoreaRates } | null>(null);
   const [whaleSignal, setWhaleSignal] = useState<WhaleSignal | null>(null);
   const [loadingInvestors, setLoadingInvestors] = useState(true);
   const [loadingTab, setLoadingTab] = useState(false);
@@ -141,7 +141,7 @@ export default function Home() {
             ) : (
               <WhaleSignalSection data={whaleSignal} />
             )}
-            {moneyFlow && <MoneyFlowSection data={moneyFlow} />}
+            {moneyFlow && <MoneyFlowSection data={moneyFlow} korea_rates={moneyFlow.korea_rates} />}
           </div>
         )}
 

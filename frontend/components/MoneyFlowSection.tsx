@@ -1,16 +1,19 @@
 "use client";
-import { MoneyFlowAsset } from "@/types";
+import { MoneyFlowAsset, KoreaRates } from "@/types";
 
 interface Props {
   data: {
     assets: MoneyFlowAsset[];
     rate_signal: { level: string; message: string };
     fed_rate: number;
+    korea_rates?: KoreaRates;
   };
+  korea_rates?: KoreaRates;
 }
 
-export default function MoneyFlowSection({ data }: Props) {
+export default function MoneyFlowSection({ data, korea_rates }: Props) {
   const { assets, rate_signal, fed_rate } = data;
+  const resolvedKoreaRates = korea_rates ?? data.korea_rates;
   const signalColor = rate_signal.level === "high" ? "var(--red)" : rate_signal.level === "low" ? "var(--green)" : "var(--gold)";
   const signalBg = rate_signal.level === "high" ? "var(--red-dim)" : rate_signal.level === "low" ? "var(--green-dim)" : "var(--gold-dim)";
 
@@ -38,6 +41,39 @@ export default function MoneyFlowSection({ data }: Props) {
           </div>
         </div>
       </div>
+
+      {/* 한국/미국 금리 비교 */}
+      {resolvedKoreaRates && (
+        <div style={{
+          display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap",
+        }}>
+          <div style={{
+            flex: 1, minWidth: 140, background: "var(--card)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "12px 16px",
+          }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>🇰🇷 한국 기준금리</div>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>
+              {resolvedKoreaRates.base_rate != null ? `${resolvedKoreaRates.base_rate}%` : "—"}
+            </div>
+          </div>
+          <div style={{
+            flex: 1, minWidth: 140, background: "var(--card)", border: "1px solid var(--border)",
+            borderRadius: 10, padding: "12px 16px",
+          }}>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>🇺🇸 미국 기준금리 (Fed)</div>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>{fed_rate}%</div>
+          </div>
+          {resolvedKoreaRates.treasury_3y != null && (
+            <div style={{
+              flex: 1, minWidth: 140, background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 10, padding: "12px 16px",
+            }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>🇰🇷 국고채 3년</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{resolvedKoreaRates.treasury_3y}%</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 자산 카드 그리드 (2~3열) */}
       <div className="grid-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
