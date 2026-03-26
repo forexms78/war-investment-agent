@@ -158,8 +158,8 @@ export default function BondsSection({
                   display: "block",
                   background: "var(--card)",
                   border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  padding: "14px 16px",
+                  borderRadius: 14,
+                  overflow: "hidden",
                   textDecoration: "none",
                   color: "inherit",
                   transition: "background 0.15s",
@@ -167,11 +167,23 @@ export default function BondsSection({
                 onMouseEnter={e => (e.currentTarget.style.background = "var(--card-hover)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "var(--card)")}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4, lineHeight: 1.4 }}>
-                  {n.title}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {n.source} · {new Date(n.published_at).toLocaleDateString("ko-KR")}
+                {n.image_url && (
+                  <div style={{ width: "100%", height: 200, overflow: "hidden", background: "var(--border)" }}>
+                    <img
+                      src={n.image_url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                )}
+                <div style={{ padding: "14px 16px" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6, lineHeight: 1.5 }}>
+                    {n.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    {n.source} · {new Date(n.published_at).toLocaleDateString("ko-KR")}
+                  </div>
                 </div>
               </a>
             ))}

@@ -158,8 +158,8 @@ function NewsAICard({ item }: { item: NewsAIItem }) {
         display: "block",
         background: "var(--card)",
         border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "14px 16px",
+        borderRadius: 14,
+        overflow: "hidden",
         textDecoration: "none",
         color: "inherit",
         transition: "background 0.15s",
@@ -167,39 +167,52 @@ function NewsAICard({ item }: { item: NewsAIItem }) {
       onMouseEnter={e => (e.currentTarget.style.background = "var(--card-hover)")}
       onMouseLeave={e => (e.currentTarget.style.background = "var(--card)")}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexWrap: "wrap" }}>
-            <span style={{
-              fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 4,
-              background: "var(--accent-dim)", color: "var(--accent)",
-              border: "1px solid var(--accent-glow)",
-            }}>
-              {item.category}
-            </span>
-            <span style={{
-              fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 4,
-              background: `${sc.color}15`, color: sc.color,
-            }}>
-              {sc.label}
-            </span>
+      {/* 이미지 */}
+      {item.image_url && (
+        <div style={{
+          width: "100%", height: 200, overflow: "hidden",
+          background: "var(--border)",
+        }}>
+          <img
+            src={item.image_url}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        </div>
+      )}
+      {/* 컨텐츠 */}
+      <div style={{ padding: "16px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
+            background: "var(--accent-dim)", color: "var(--accent)",
+            border: "1px solid var(--accent-glow)",
+          }}>
+            {item.category}
+          </span>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
+            background: `${sc.color}15`, color: sc.color,
+          }}>
+            {sc.label}
+          </span>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.5, marginBottom: 8 }}>
+          {item.title}
+        </div>
+        {item.ai_summary && (
+          <div style={{
+            fontSize: 12, color: "var(--accent)",
+            background: "var(--accent-dim)", borderRadius: 6,
+            padding: "5px 10px", marginBottom: 8, display: "inline-block",
+            border: "1px solid var(--accent-glow)",
+          }}>
+            {item.ai_summary}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.45, marginBottom: 4 }}>
-            {item.title}
-          </div>
-          {item.ai_summary && (
-            <div style={{
-              fontSize: 12, color: "var(--accent)",
-              background: "var(--accent-dim)", borderRadius: 6,
-              padding: "4px 10px", marginBottom: 6, display: "inline-block",
-              border: "1px solid var(--accent-glow)",
-            }}>
-              {item.ai_summary}
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-            {item.source} · {new Date(item.published_at).toLocaleDateString("ko-KR")}
-          </div>
+        )}
+        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {item.source} · {new Date(item.published_at).toLocaleDateString("ko-KR")}
         </div>
       </div>
     </a>
