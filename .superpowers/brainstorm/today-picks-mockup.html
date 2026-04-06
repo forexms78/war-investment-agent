@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whalyx — 오늘의 투자포인트 목업</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+
+  /* 헤더 */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+  .logo { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+  .logo span { color: #3b82f6; }
+  .date-badge {
+    font-size: 12px;
+    color: #64748b;
+    background: #1e2330;
+    border: 1px solid #2d3748;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+  .nav-link {
+    font-size: 12px;
+    color: #4b6cb7;
+    text-decoration: none;
+    border: 1px solid #2d3a5e;
+    padding: 5px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+  }
+
+  /* AI 업데이트 표시 */
+  .ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 28px;
+  }
+  .ai-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* 섹션 */
+  .section { margin-bottom: 28px; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label.buy  { color: #22c55e; }
+  .section-label.sell { color: #ef4444; }
+  .section-label.watch{ color: #f59e0b; }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    opacity: 0.2;
+  }
+  .section-label.buy::after  { background: #22c55e; }
+  .section-label.sell::after { background: #ef4444; }
+  .section-label.watch::after{ background: #f59e0b; }
+
+  /* 카드 그리드 */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+  .card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 14px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s, border-color 0.15s;
+    cursor: pointer;
+  }
+  .card:hover { transform: translateY(-2px); }
+  .card.buy  { border-top: 2px solid #22c55e; }
+  .card.sell { border-top: 2px solid #ef4444; }
+  .card.watch{ border-top: 2px solid #f59e0b; }
+
+  .card-glow {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    opacity: 0.04;
+    border-radius: 14px 14px 0 0;
+  }
+  .card.buy  .card-glow { background: #22c55e; }
+  .card.sell .card-glow { background: #ef4444; }
+  .card.watch .card-glow { background: #f59e0b; }
+
+  .ticker {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .company { font-size: 11px; color: #64748b; margin-top: 1px; margin-bottom: 10px; }
+
+  .price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .price { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+  .change { font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
+  .change.up   { color: #22c55e; background: rgba(34,197,94,0.12); }
+  .change.down { color: #ef4444; background: rgba(239,68,68,0.12); }
+  .change.flat { color: #f59e0b; background: rgba(245,158,11,0.12); }
+
+  .reason {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.5;
+    border-top: 1px solid #2d3748;
+    padding-top: 10px;
+  }
+
+  /* 하단 대시보드 링크 */
+  .footer {
+    text-align: center;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #1e2330;
+  }
+  .footer p { font-size: 12px; color: #4b5563; margin-bottom: 10px; }
+  .dashboard-btn {
+    display: inline-block;
+    font-size: 12px;
+    color: #94a3b8;
+    border: 1px solid #2d3748;
+    padding: 7px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="header">
+  <div class="logo">Wha<span>lyx</span></div>
+  <div class="date-badge">2026년 4월 6일 (일)</div>
+  <a class="nav-link">전체 대시보드 →</a>
+</div>
+
+<!-- AI 갱신 표시 -->
+<div class="ai-badge">
+  <div class="ai-dot"></div>
+  Gemini AI 분석 · 오늘 09:00 갱신
+</div>
+
+<!-- 매수 추천 -->
+<div class="section">
+  <div class="section-label buy">▲ 매수 추천</div>
+  <div class="grid">
+    <div class="card buy">
+      <div class="card-glow"></div>
+      <div class="ticker">NVDA</div>
+      <div class="company">NVIDIA Corporation</div>
+      <div class="price-row">
+        <span class="price">$876.40</span>
+        <span class="change up">+3.2%</span>
+      </div>
+      <div class="reason">AI 반도체 수요 급증으로 데이터센터 매출 가이던스 상향. 기관 순매수 전환.</div>
+    </div>
+    <div class="card buy">
+      <div class="card-glow"></div>
+      <div class="ticker">META</div>
+      <div class="company">Meta Platforms</div>
+      <div class="price-row">
+        <span class="price">$512.30</span>
+        <span class="change up">+1.8%</span>
+      </div>
+      <div class="reason">광고 매출 회복세 + Llama AI 오픈소스 모멘텀. P/E 밸류에이션 역대 저점.</div>
+    </div>
+    <div class="card buy">
+      <div class="card-glow"></div>
+      <div class="ticker">OXY</div>
+      <div class="company">Occidental Petroleum</div>
+      <div class="price-row">
+        <span class="price">$62.15</span>
+        <span class="change up">+2.1%</span>
+      </div>
+      <div class="reason">버핏 지속 매수 중. 유가 반등 + 배당 안정성. 에너지 섹터 내 저평가.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 매도 추천 -->
+<div class="section">
+  <div class="section-label sell">▼ 매도 추천</div>
+  <div class="grid">
+    <div class="card sell">
+      <div class="card-glow"></div>
+      <div class="ticker">TSLA</div>
+      <div class="company">Tesla Inc.</div>
+      <div class="price-row">
+        <span class="price">$174.20</span>
+        <span class="change down">-4.6%</span>
+      </div>
+      <div class="reason">판매량 YoY 감소 지속. 가격 인하 사이클 마진 압박. 브랜드 리스크 확대.</div>
+    </div>
+    <div class="card sell">
+      <div class="card-glow"></div>
+      <div class="ticker">AAPL</div>
+      <div class="company">Apple Inc.</div>
+      <div class="price-row">
+        <span class="price">$169.50</span>
+        <span class="change down">-1.9%</span>
+      </div>
+      <div class="reason">중국 시장 점유율 하락. AI 기능 출시 지연. 버핏 지속 매도 신호.</div>
+    </div>
+    <div class="card sell">
+      <div class="card-glow"></div>
+      <div class="ticker">NFLX</div>
+      <div class="company">Netflix Inc.</div>
+      <div class="price-row">
+        <span class="price">$628.00</span>
+        <span class="change down">-2.3%</span>
+      </div>
+      <div class="reason">광고 요금제 전환 속도 둔화. 경쟁 심화 대비 밸류에이션 고평가 구간.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 관심 종목 -->
+<div class="section">
+  <div class="section-label watch">◎ 고거래량 관심 종목</div>
+  <div class="grid">
+    <div class="card watch">
+      <div class="card-glow"></div>
+      <div class="ticker">PLTR</div>
+      <div class="company">Palantir Technologies</div>
+      <div class="price-row">
+        <span class="price">$24.80</span>
+        <span class="change flat">+0.4%</span>
+      </div>
+      <div class="reason">정부·국방 AI 계약 발표 잦음. 거래량 급증. 방향성 결정 구간.</div>
+    </div>
+    <div class="card watch">
+      <div class="card-glow"></div>
+      <div class="ticker">BABA</div>
+      <div class="company">Alibaba Group</div>
+      <div class="price-row">
+        <span class="price">$82.30</span>
+        <span class="change up">+5.1%</span>
+      </div>
+      <div class="reason">버리 대규모 매수 포지션. 중국 경기부양책 기대. 급등 가능성 주시.</div>
+    </div>
+    <div class="card watch">
+      <div class="card-glow"></div>
+      <div class="ticker">AMD</div>
+      <div class="company">Advanced Micro Devices</div>
+      <div class="price-row">
+        <span class="price">$158.40</span>
+        <span class="change down">-1.2%</span>
+      </div>
+      <div class="reason">NVDA 대안 수요 증가. MI300X GPU 공급 확대. 변동성 구간 진입.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 하단 -->
+<div class="footer">
+  <p>Whalyx의 기존 투자자 트래커, 코인, 부동산, 돈의 흐름 분석은 아래에서 확인하세요</p>
+  <a class="dashboard-btn">전체 대시보드 보기</a>
+</div>
+
+</body>
+</html>
