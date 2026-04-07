@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 import google.generativeai as genai
+from backend.services.db_cache import db_get, db_set
 
 load_dotenv()
 
@@ -222,8 +223,15 @@ def _compute_scores(prices: dict[str, dict]) -> dict[str, float]:
 def get_today_picks() -> dict:
     """캐시 적중 시 즉시 반환, 만료 시 전체 파이프라인 실행"""
     now = time.time()
+    # 1순위: 메모리 캐시
     if _picks_cache["data"] and now - _picks_cache["ts"] < PICKS_TTL:
         return _picks_cache["data"]
+    # 2순위: Supabase 영속 캐시
+    db_cached = db_get("today_picks", PICKS_TTL)
+    if db_cached:
+        _picks_cache["data"] = db_cached
+        _picks_cache["ts"] = now
+        return db_cached
 
     # 1. 가격 데이터 수집
     prices = _fetch_all_prices(SP50)
@@ -295,4 +303,5 @@ def get_today_picks() -> dict:
     }
     _picks_cache["data"] = result
     _picks_cache["ts"]   = now
+    db_set("today_picks", result)
     return result

@@ -21,6 +21,7 @@ from backend.services.whale_signal import get_whale_signal
 from backend.services.korea_rates import get_korea_rates
 from backend.services.fed_rate import get_fed_rate
 from backend.services.today_picks import get_today_picks
+from backend.services.db_cache import db_get, db_set
 
 app = FastAPI(title="Whalyx API", version="2.0.0")
 
@@ -231,6 +232,10 @@ async def realestate():
 @app.get("/money-flow")
 async def money_flow():
     """금리·자산군별 수익률 — 돈의 흐름 파악"""
+    cached = await asyncio.get_event_loop().run_in_executor(_executor, db_get, "money_flow", 3600)
+    if cached:
+        return cached
+
     # 금리 민감 자산 지표 (^TNX=10년 국채, ^IRX=3개월)
     macro_tickers = ["^TNX", "^IRX", "GLD", "SPY", "TLT"]
     prices = await get_multiple_stocks_parallel(macro_tickers)
@@ -311,7 +316,9 @@ async def money_flow():
 
     kor = await asyncio.get_event_loop().run_in_executor(_executor, get_korea_rates)
     fed_rate = await asyncio.get_event_loop().run_in_executor(_executor, get_fed_rate)
-    return {"assets": assets, "rate_signal": signal, "fed_rate": fed_rate, "korea_rates": kor}
+    result = {"assets": assets, "rate_signal": signal, "fed_rate": fed_rate, "korea_rates": kor}
+    await asyncio.get_event_loop().run_in_executor(_executor, db_set, "money_flow", result)
+    return result
 
 
 # ─────────────────────────────────────────────

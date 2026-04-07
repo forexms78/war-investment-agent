@@ -6,6 +6,8 @@ import TodayPicksGrid from "@/components/TodayPicksGrid";
 import SkeletonCard from "@/components/SkeletonCard";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
+const CACHE_KEY = "whalyx_today_picks_v1";
+const CACHE_TTL = 3 * 60 * 60 * 1000; // 3시간 (ms)
 
 interface PickItem {
   ticker: string;
@@ -58,12 +60,31 @@ export default function TodayPicksPage() {
   };
 
   useEffect(() => {
+    // localStorage 캐시 확인 (3시간)
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const { data: cached, usdKrw: cachedRate, ts } = JSON.parse(raw);
+        if (Date.now() - ts < CACHE_TTL) {
+          setData(cached);
+          if (cachedRate) setUsdKrw(cachedRate);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch { /* localStorage 오류 무시 */ }
+
+    // 캐시 미스 → 네트워크 요청
     Promise.all([
       fetch(`${API}/today-picks`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
       fetch(`${API}/korea-rates`).then(r => r.json()).catch(() => null),
     ]).then(([picks, rates]) => {
       setData(picks);
-      if (rates?.usd_krw) setUsdKrw(rates.usd_krw);
+      const rate = rates?.usd_krw ?? null;
+      if (rate) setUsdKrw(rate);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: picks, usdKrw: rate, ts: Date.now() }));
+      } catch { /* 저장 실패 무시 */ }
     }).catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);

@@ -5,12 +5,14 @@ from typing import Optional
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
+from backend.services.db_cache import db_get, db_set
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 _signal_cache: Optional[tuple[dict, float]] = None
-SIGNAL_TTL = 7200   # 2시간 — 급변장 대응을 위해 단축
+SIGNAL_TTL = 7200   # 2시간
+DB_CACHE_KEY = "whale_signal"
 
 
 def _score_to_label(score: int) -> tuple[str, str, str]:
@@ -30,8 +32,14 @@ def _score_to_label(score: int) -> tuple[str, str, str]:
 async def get_whale_signal(money_flow_assets: list[dict], fed_rate: float) -> dict:
     global _signal_cache
     now = time.time()
+    # 1순위: 메모리 캐시 (가장 빠름)
     if _signal_cache and now - _signal_cache[1] < SIGNAL_TTL:
         return _signal_cache[0]
+    # 2순위: Supabase 영속 캐시 (Railway 재시작 후에도 유효)
+    db_cached = db_get(DB_CACHE_KEY, SIGNAL_TTL)
+    if db_cached:
+        _signal_cache = (db_cached, now)
+        return db_cached
 
     # money_flow_assets에서 각 자산군 수익률 추출
     spy_chg = next((a["change_30d"] for a in money_flow_assets if "SPY" in a.get("name", "") or a.get("category") == "주식"), 0) or 0
@@ -141,4 +149,5 @@ async def get_whale_signal(money_flow_assets: list[dict], fed_rate: float) -> di
     }
 
     _signal_cache = (result, time.time())
+    db_set(DB_CACHE_KEY, result)   # Supabase에 비동기 없이 저장 (재시작 대비)
     return result
