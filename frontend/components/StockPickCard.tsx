@@ -7,6 +7,7 @@ export interface StockPickCardProps {
   change_pct: number;
   reason: string;
   type: "buy" | "sell" | "watch";
+  usdKrw?: number | null;
 }
 
 const TYPE_COLORS = {
@@ -15,9 +16,10 @@ const TYPE_COLORS = {
   watch: { border: "#f59e0b", glow: "rgba(245,158,11,0.08)", text: "#f59e0b", changeBg: "rgba(245,158,11,0.12)" },
 };
 
-export default function StockPickCard({ ticker, name, price, change_pct, reason, type }: StockPickCardProps) {
+export default function StockPickCard({ ticker, name, price, change_pct, reason, type, usdKrw }: StockPickCardProps) {
   const c = TYPE_COLORS[type];
   const isUp = change_pct >= 0;
+  const krwPrice = usdKrw ? Math.round(price * usdKrw) : null;
 
   return (
     <div style={{
@@ -48,18 +50,25 @@ export default function StockPickCard({ ticker, name, price, change_pct, reason,
         {name}
       </div>
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
-          ${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-        <span style={{
-          fontSize: 12, fontWeight: 700,
-          padding: "2px 7px", borderRadius: 6,
-          color: type === "watch" ? c.text : isUp ? "#22c55e" : "#ef4444",
-          background: type === "watch" ? c.changeBg : isUp ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-        }}>
-          {change_pct >= 0 ? "+" : ""}{change_pct.toFixed(2)}%
-        </span>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>
+            ${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          <span style={{
+            fontSize: 12, fontWeight: 700,
+            padding: "2px 7px", borderRadius: 6,
+            color: type === "watch" ? c.text : isUp ? "#22c55e" : "#ef4444",
+            background: type === "watch" ? c.changeBg : isUp ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+          }}>
+            {change_pct >= 0 ? "+" : ""}{change_pct.toFixed(2)}%
+          </span>
+        </div>
+        {krwPrice !== null && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+            ₩{krwPrice.toLocaleString("ko-KR")}
+          </div>
+        )}
       </div>
 
       <div style={{

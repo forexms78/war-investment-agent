@@ -42,6 +42,7 @@ function fmtDate(): string {
 
 export default function TodayPicksPage() {
   const [data, setData] = useState<TodayPicksData | null>(null);
+  const [usdKrw, setUsdKrw] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
@@ -57,10 +58,13 @@ export default function TodayPicksPage() {
   };
 
   useEffect(() => {
-    fetch(`${API}/today-picks`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => setData(d))
-      .catch(() => setError(true))
+    Promise.all([
+      fetch(`${API}/today-picks`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+      fetch(`${API}/korea-rates`).then(r => r.json()).catch(() => null),
+    ]).then(([picks, rates]) => {
+      setData(picks);
+      if (rates?.usd_krw) setUsdKrw(rates.usd_krw);
+    }).catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -165,9 +169,9 @@ export default function TodayPicksPage() {
         {/* 데이터 */}
         {!loading && data && (
           <>
-            <TodayPicksGrid items={data.buy}   type="buy"   />
-            <TodayPicksGrid items={data.sell}  type="sell"  />
-            <TodayPicksGrid items={data.watch} type="watch" />
+            <TodayPicksGrid items={data.buy}   type="buy"   usdKrw={usdKrw} />
+            <TodayPicksGrid items={data.sell}  type="sell"  usdKrw={usdKrw} />
+            <TodayPicksGrid items={data.watch} type="watch" usdKrw={usdKrw} />
           </>
         )}
 

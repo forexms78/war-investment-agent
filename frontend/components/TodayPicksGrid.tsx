@@ -3,8 +3,9 @@
 import StockPickCard, { StockPickCardProps } from "./StockPickCard";
 
 interface TodayPicksGridProps {
-  items: Omit<StockPickCardProps, "type">[];
+  items: Omit<StockPickCardProps, "type" | "usdKrw">[];
   type: "buy" | "sell" | "watch";
+  usdKrw?: number | null;
 }
 
 const SECTION_LABELS = {
@@ -13,7 +14,7 @@ const SECTION_LABELS = {
   watch: { text: "◎ 고거래량 관심 종목", color: "#f59e0b" },
 };
 
-export default function TodayPicksGrid({ items, type }: TodayPicksGridProps) {
+export default function TodayPicksGrid({ items, type, usdKrw }: TodayPicksGridProps) {
   const label = SECTION_LABELS[type];
 
   return (
@@ -36,7 +37,7 @@ export default function TodayPicksGrid({ items, type }: TodayPicksGridProps) {
         gap: 12,
       }}>
         {items.map(item => (
-          <StockPickCard key={item.ticker} {...item} type={type} />
+          <StockPickCard key={item.ticker} {...item} type={type} usdKrw={usdKrw} />
         ))}
       </div>
     </div>
