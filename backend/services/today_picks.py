@@ -94,9 +94,9 @@ def _fetch_price_one(ticker: str) -> dict | None:
 
 
 def _fetch_all_prices(tickers: list[str]) -> dict[str, dict]:
-    """ThreadPoolExecutor로 50종목 병렬 조회"""
+    """ThreadPoolExecutor로 50종목 병렬 조회 (workers 5로 제한, rate limit 완화)"""
     results = {}
-    with ThreadPoolExecutor(max_workers=12) as ex:
+    with ThreadPoolExecutor(max_workers=5) as ex:
         futures = {ex.submit(_fetch_price_one, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]

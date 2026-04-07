@@ -3,10 +3,13 @@ import time
 import requests
 
 _session = requests.Session()
-_session.headers.update({"User-Agent": "WhaleTracks/1.0"})
+_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+})
 
 _cache: dict[str, tuple] = {}
-CACHE_TTL = 300  # 5분
+CACHE_TTL = 600  # 10분 (rate limit 완화)
 
 TRACKED_COINS = [
     "bitcoin", "ethereum", "solana", "binancecoin", "ripple",
@@ -44,9 +47,20 @@ def get_coin_markets() -> list[dict]:
             "sparkline": True,
             "price_change_percentage": "24h,7d,30d",
         }
-        r = _session.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        raw = r.json()
+        # 최대 2회 재시도 (429 대응)
+        raw = None
+        for attempt in range(2):
+            r = _session.get(url, params=params, timeout=10)
+            if r.status_code == 429:
+                if attempt == 0:
+                    import time as _t; _t.sleep(3)
+                    continue
+                break
+            r.raise_for_status()
+            raw = r.json()
+            break
+        if raw is None:
+            return _cache.get(cache_key, ([], 0))[0]
         result = [
             {
                 "id": c["id"],
