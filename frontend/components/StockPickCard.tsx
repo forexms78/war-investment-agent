@@ -8,6 +8,7 @@ export interface StockPickCardProps {
   reason: string;
   type: "buy" | "sell" | "watch";
   usdKrw?: number | null;
+  onClick?: () => void;
 }
 
 const TYPE_COLORS = {
@@ -16,23 +17,25 @@ const TYPE_COLORS = {
   watch: { border: "#f59e0b", glow: "rgba(245,158,11,0.08)", text: "#f59e0b", changeBg: "rgba(245,158,11,0.12)" },
 };
 
-export default function StockPickCard({ ticker, name, price, change_pct, reason, type, usdKrw }: StockPickCardProps) {
+export default function StockPickCard({ ticker, name, price, change_pct, reason, type, usdKrw, onClick }: StockPickCardProps) {
   const c = TYPE_COLORS[type];
   const isUp = change_pct >= 0;
   const krwPrice = usdKrw ? Math.round(price * usdKrw) : null;
 
   return (
-    <div style={{
-      background: "var(--card)",
-      border: `1px solid var(--border)`,
-      borderTop: `2px solid ${c.border}`,
-      borderRadius: 14,
-      padding: 16,
-      position: "relative",
-      overflow: "hidden",
-      cursor: "default",
-      transition: "transform 0.15s, box-shadow 0.15s",
-    }}
+    <div
+      onClick={onClick}
+      style={{
+        background: "var(--card)",
+        border: `1px solid var(--border)`,
+        borderTop: `2px solid ${c.border}`,
+        borderRadius: 14,
+        padding: 16,
+        position: "relative",
+        overflow: "hidden",
+        cursor: onClick ? "pointer" : "default",
+        transition: "transform 0.15s, box-shadow 0.15s",
+      }}
     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 20px ${c.glow}`; }}
     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = ""; (e.currentTarget as HTMLDivElement).style.boxShadow = ""; }}
     >

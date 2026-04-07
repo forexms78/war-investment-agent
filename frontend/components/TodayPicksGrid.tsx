@@ -3,9 +3,10 @@
 import StockPickCard, { StockPickCardProps } from "./StockPickCard";
 
 interface TodayPicksGridProps {
-  items: Omit<StockPickCardProps, "type" | "usdKrw">[];
+  items: Omit<StockPickCardProps, "type" | "usdKrw" | "onClick">[];
   type: "buy" | "sell" | "watch";
   usdKrw?: number | null;
+  onCardClick?: (ticker: string) => void;
 }
 
 const SECTION_LABELS = {
@@ -14,7 +15,7 @@ const SECTION_LABELS = {
   watch: { text: "◎ 고거래량 관심 종목", color: "#f59e0b" },
 };
 
-export default function TodayPicksGrid({ items, type, usdKrw }: TodayPicksGridProps) {
+export default function TodayPicksGrid({ items, type, usdKrw, onCardClick }: TodayPicksGridProps) {
   const label = SECTION_LABELS[type];
 
   return (
@@ -37,7 +38,7 @@ export default function TodayPicksGrid({ items, type, usdKrw }: TodayPicksGridPr
         gap: 12,
       }}>
         {items.map(item => (
-          <StockPickCard key={item.ticker} {...item} type={type} usdKrw={usdKrw} />
+          <StockPickCard key={item.ticker} {...item} type={type} usdKrw={usdKrw} onClick={onCardClick ? () => onCardClick(item.ticker) : undefined} />
         ))}
       </div>
     </div>

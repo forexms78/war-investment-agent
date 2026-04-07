@@ -67,11 +67,40 @@ export interface StockDetail {
   name: string;
   sector?: string;
   industry?: string;
-  market_cap?: number | null;
+  exchange?: string;
+  description?: string;
+  // 가격
   current_price?: number;
+  prev_close?: number;
+  day_high?: number;
+  day_low?: number;
   change_30d_pct?: number;
   change_1d_pct?: number;
   volatility?: number;
+  // 시장 지표
+  market_cap?: number | null;
+  volume?: number | null;
+  avg_volume?: number | null;
+  week52_high?: number | null;
+  week52_low?: number | null;
+  // 밸류에이션
+  trailing_pe?: number | null;
+  forward_pe?: number | null;
+  eps?: number | null;
+  price_to_book?: number | null;
+  beta?: number | null;
+  dividend_yield?: number | null;
+  // 재무
+  revenue?: number | null;
+  gross_margins?: number | null;
+  profit_margins?: number | null;
+  roe?: number | null;
+  revenue_growth?: number | null;
+  // 애널리스트
+  target_mean_price?: number | null;
+  recommendation?: number | null;
+  analyst_count?: number | null;
+  // 차트 / 뉴스 / AI
   chart: ChartPoint[];
   news: NewsItem[];
   insight: string;

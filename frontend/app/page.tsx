@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import TodayPicksGrid from "@/components/TodayPicksGrid";
 import SkeletonCard from "@/components/SkeletonCard";
+import StockModal from "@/components/StockModal";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 const CACHE_KEY = "whalyx_today_picks_v1";
@@ -48,6 +49,7 @@ export default function TodayPicksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "light");
@@ -190,9 +192,9 @@ export default function TodayPicksPage() {
         {/* 데이터 */}
         {!loading && data && (
           <>
-            <TodayPicksGrid items={data.buy}   type="buy"   usdKrw={usdKrw} />
-            <TodayPicksGrid items={data.sell}  type="sell"  usdKrw={usdKrw} />
-            <TodayPicksGrid items={data.watch} type="watch" usdKrw={usdKrw} />
+            <TodayPicksGrid items={data.buy}   type="buy"   usdKrw={usdKrw} onCardClick={setSelectedTicker} />
+            <TodayPicksGrid items={data.sell}  type="sell"  usdKrw={usdKrw} onCardClick={setSelectedTicker} />
+            <TodayPicksGrid items={data.watch} type="watch" usdKrw={usdKrw} onCardClick={setSelectedTicker} />
           </>
         )}
 
@@ -219,6 +221,10 @@ export default function TodayPicksPage() {
         .fade-in { animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
       `}</style>
+
+      {selectedTicker && (
+        <StockModal ticker={selectedTicker} onClose={() => setSelectedTicker(null)} />
+      )}
     </div>
   );
 }
