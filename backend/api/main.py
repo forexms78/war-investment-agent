@@ -46,6 +46,18 @@ def health_check():
     return {"status": "ok", "service": "Whalyx API", "version": "2.0.0"}
 
 
+@app.get("/debug/env")
+def debug_env():
+    import os
+    key = os.getenv("GEMINI_API_KEY", "")
+    return {
+        "GEMINI_API_KEY_set": bool(key),
+        "GEMINI_API_KEY_prefix": key[:8] + "..." if key else "NOT SET",
+        "SUPABASE_URL_set": bool(os.getenv("SUPABASE_URL")),
+        "BOK_API_KEY_set": bool(os.getenv("BOK_API_KEY")),
+    }
+
+
 # ─────────────────────────────────────────────
 # 투자자
 # ─────────────────────────────────────────────
