@@ -1,24 +1,25 @@
-import os
 import time
-import requests
-from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
-
-load_dotenv()
-
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-NEWS_API_URL = "https://newsapi.org/v2/everything"
+import feedparser
+from urllib.parse import quote_plus
+from email.utils import parsedate_to_datetime
 
 _news_cache: dict[str, tuple[list[dict], float]] = {}
 NEWS_CACHE_TTL = 900  # 15분
 
-
 _BLOCKED_DOMAINS = {
     "pypi.org", "github.com", "npmjs.com", "stackoverflow.com",
-    "readthedocs.io", "docs.python.org", "medium.com/tag",
+    "readthedocs.io", "docs.python.org",
     "t.co", "reddit.com", "twitter.com", "x.com",
     "patreon.com", "substack.com", "discord.com", "telegram.org",
 }
+
+_PROMO_KEYWORDS = [
+    "earn up to", "sign up", "join now", "get started", "trading platform",
+    "exchange listing", "listed on", "now available on", "launch event",
+    "exclusive offer", "limited time", "airdrop", "referral", "bonus",
+    "sponsored", "advertisement", "press release",
+]
+_PROMO_SOURCES = {"prnewswire", "globenewswire", "businesswire", "accesswire"}
 
 
 def _is_junk_url(url: str) -> bool:
@@ -32,52 +33,67 @@ def _is_junk_url(url: str) -> bool:
         return False
 
 
-def _fetch_news(q: str, limit: int, language: str = "en", hours: int = 48) -> list[dict]:
-    cache_key = f"{q}_{limit}_{language}"
+def _parse_published(entry) -> str:
+    try:
+        return parsedate_to_datetime(entry.published).isoformat()
+    except Exception:
+        return ""
+
+
+def _fetch_news(q: str, limit: int, hl: str = "en", gl: str = "US", ceid: str = "US:en") -> list[dict]:
+    cache_key = f"{q}_{limit}_{hl}_{gl}"
     now = time.time()
     cached = _news_cache.get(cache_key)
     if cached and now - cached[1] < NEWS_CACHE_TTL:
         return cached[0]
 
-    from_dt = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    url = (
+        f"https://news.google.com/rss/search?"
+        f"q={quote_plus(q)}&hl={hl}&gl={gl}&ceid={ceid}"
+    )
 
     try:
-        params = {
-            "q": q,
-            "language": language,
-            "sortBy": "publishedAt",
-            "pageSize": min(limit * 2, 20),   # 필터 후 limit 맞추기 위해 여유분 조회
-            "from": from_dt,
-            "apiKey": NEWS_API_KEY,
-        }
-        r = requests.get(NEWS_API_URL, params=params, timeout=10)
-        r.raise_for_status()
-        articles = r.json().get("articles", [])
+        feed = feedparser.parse(url)
         seen_urls: set[str] = set()
         seen_titles: set[str] = set()
         result = []
-        for a in articles:
-            title = a.get("title", "")
-            url = a.get("url", "")
+
+        for entry in feed.entries:
+            title = entry.get("title", "")
+            link = entry.get("link", "")
+            source = entry.get("source", {}).get("title", "") if hasattr(entry.get("source", ""), "get") else ""
+            description = entry.get("summary", "")
+
             if not title or "[Removed]" in title:
                 continue
-            if _is_junk_url(url):
+            if _is_junk_url(link):
                 continue
-            # URL 또는 제목 앞 40자 기준 중복 제거
+
             title_key = title[:40].lower()
-            if url in seen_urls or title_key in seen_titles:
+            if link in seen_urls or title_key in seen_titles:
                 continue
-            seen_urls.add(url)
+
+            # 홍보성 필터
+            text = (title + " " + description).lower()
+            if any(kw in text for kw in _PROMO_KEYWORDS):
+                continue
+            if any(s in source.lower() for s in _PROMO_SOURCES):
+                continue
+
+            seen_urls.add(link)
             seen_titles.add(title_key)
             result.append({
                 "title": title,
-                "description": a.get("description", ""),
-                "source": a["source"]["name"],
-                "published_at": a["publishedAt"],
-                "url": url,
-                "image_url": a.get("urlToImage", ""),
+                "description": description,
+                "source": source,
+                "published_at": _parse_published(entry),
+                "url": link,
+                "image_url": "",
             })
-        result = result[:limit]
+
+            if len(result) >= limit:
+                break
+
         _news_cache[cache_key] = (result, time.time())
         return result
     except Exception:
@@ -85,7 +101,6 @@ def _fetch_news(q: str, limit: int, language: str = "en", hours: int = 48) -> li
 
 
 def fetch_investor_news(investor_name: str, limit: int = 6) -> list[dict]:
-    """투자자 이름으로 뉴스 조회 — 단계적 쿼리"""
     for q in [f'"{investor_name}"', investor_name]:
         results = _fetch_news(q, limit)
         if results:
@@ -94,39 +109,33 @@ def fetch_investor_news(investor_name: str, limit: int = 6) -> list[dict]:
 
 
 def fetch_stock_news(ticker: str, limit: int = 5) -> list[dict]:
-    """종목 뉴스"""
     return _fetch_news(ticker, limit)
 
 
 def fetch_crypto_news(limit: int = 8) -> list[dict]:
-    """코인/암호화폐 최신 뉴스"""
-    results = _fetch_news("bitcoin OR ethereum OR crypto OR cryptocurrency", limit)
+    results = _fetch_news("bitcoin OR ethereum OR crypto cryptocurrency", limit)
     if not results:
         results = _fetch_news("crypto", limit)
     return results
 
 
 def fetch_realestate_news(limit: int = 8) -> list[dict]:
-    """한국 부동산 뉴스 — 한국어"""
     queries = [
         "아파트 부동산 서울",
         "부동산 시세 매매",
         "한국 부동산",
     ]
     for q in queries:
-        results = _fetch_news(q, limit, language="ko")
+        results = _fetch_news(q, limit, hl="ko", gl="KR", ceid="KR:ko")
         if results:
             return results
-    # 영어 폴백
     return _fetch_news("Korea real estate housing market", limit)
 
 
 def fetch_commodity_news(limit: int = 8) -> list[dict]:
-    """광물/원자재 뉴스"""
     results = _fetch_news(
-        "gold OR silver OR copper OR oil OR uranium OR lithium commodity",
+        "gold silver copper oil uranium lithium commodity",
         limit,
-        language="en",
     )
     if not results:
         results = _fetch_news("commodity metals energy", limit)
@@ -134,73 +143,45 @@ def fetch_commodity_news(limit: int = 8) -> list[dict]:
 
 
 def fetch_bond_news(limit: int = 8) -> list[dict]:
-    """채권/금리 뉴스"""
     results = _fetch_news(
         "treasury bonds yield interest rate Fed Federal Reserve",
         limit,
-        language="en",
     )
     if not results:
         results = _fetch_news("bond yield treasury", limit)
     return results
 
 
-_CRYPTO_PROMO_KEYWORDS = [
-    "earn up to", "sign up", "join now", "get started", "trading platform",
-    "exchange listing", "listed on", "now available on", "launch event",
-    "exclusive offer", "limited time", "airdrop", "referral", "bonus",
-    "sponsored", "advertisement", "press release",
-]
-_PROMO_SOURCES = {"prnewswire", "globenewswire", "businesswire", "accesswire"}
-
-
-def _filter_promo(articles: list[dict]) -> list[dict]:
-    """코인 홍보·광고성 뉴스 제거"""
-    result = []
-    for a in articles:
-        text = ((a.get("title") or "") + " " + (a.get("description") or "")).lower()
-        source = (a.get("source") or "").lower()
-        if any(kw in text for kw in _CRYPTO_PROMO_KEYWORDS):
-            continue
-        if any(s in source for s in _PROMO_SOURCES):
-            continue
-        result.append(a)
-    return result
-
-
 def fetch_stock_market_news(limit: int = 8) -> list[dict]:
-    """글로벌 주식 시장 최신 뉴스 (랠리·급락·관세 포함)"""
     queries = [
-        "stock market rally surge S&P500 Nasdaq Wall Street",
-        "S&P500 stocks market today Fed tariff",
+        "stock market S&P500 Nasdaq Wall Street tariff",
+        "S&P500 stocks market Fed tariff",
         "stock market Wall Street",
     ]
     for q in queries:
-        results = _fetch_news(q, limit, hours=48)
+        results = _fetch_news(q, limit)
         if results:
             return results
     return []
 
 
 def fetch_asia_market_news(limit: int = 6) -> list[dict]:
-    """아시아·한국 증시 뉴스"""
     queries = [
-        "Kospi Korea stock market rally",
-        "Asian markets stocks rally",
+        "Kospi Korea stock market",
+        "Asian markets stocks",
         "Korea market stocks",
     ]
     for q in queries:
-        results = _fetch_news(q, limit, hours=48)
+        results = _fetch_news(q, limit)
         if results:
             return results
     return []
 
 
 def fetch_market_news_all() -> dict[str, list[dict]]:
-    """AI 뉴스 분석용 — 마켓 섹션과 동일한 소스로 수집"""
     return {
         "주식": fetch_stock_market_news(6),
-        "코인": _filter_promo(fetch_crypto_news(10))[:6],
+        "코인": fetch_crypto_news(6),
         "부동산": fetch_realestate_news(5),
         "광물": fetch_commodity_news(5),
         "채권": fetch_bond_news(5),

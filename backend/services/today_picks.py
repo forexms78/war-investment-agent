@@ -20,7 +20,6 @@ from backend.services.db_cache import db_get, db_set
 
 load_dotenv()
 
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
@@ -108,22 +107,17 @@ def _fetch_all_prices(tickers: list[str]) -> dict[str, dict]:
 
 
 # ─────────────────────────────────────────────
-# 뉴스 (NewsAPI)
+# 뉴스 (Google News RSS)
 # ─────────────────────────────────────────────
 
 def _fetch_news_one(ticker: str) -> list[str]:
-    """NewsAPI에서 종목 헤드라인 최대 3개 반환"""
-    if not NEWS_API_KEY:
-        return []
+    """Google News RSS에서 종목 헤드라인 최대 3개 반환"""
     try:
-        r = _session.get(
-            "https://newsapi.org/v2/everything",
-            params={"q": ticker, "language": "en", "sortBy": "publishedAt", "pageSize": 3, "apiKey": NEWS_API_KEY},
-            timeout=8,
-        )
-        r.raise_for_status()
-        articles = r.json().get("articles", [])
-        return [a["title"] for a in articles if a.get("title")]
+        import feedparser
+        from urllib.parse import quote_plus
+        url = f"https://news.google.com/rss/search?q={quote_plus(ticker)}&hl=en&gl=US&ceid=US:en"
+        feed = feedparser.parse(url)
+        return [e.get("title", "") for e in feed.entries[:3] if e.get("title")]
     except Exception:
         return []
 
