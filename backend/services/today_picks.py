@@ -15,13 +15,12 @@ import requests
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-import google.generativeai as genai
 from backend.services.db_cache import db_get, db_set
+from backend.utils.gemini import call_gemini
 
 load_dotenv()
 
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 _session = requests.Session()
 _session.headers.update({
@@ -161,7 +160,6 @@ def _finbert_sentiment(texts: list[str]) -> float:
 def _gemini_reason(ticker: str, name: str, momentum: float, sentiment: float, volume_ratio: float, pick_type: str) -> str:
     """Gemini 2.5 Flash로 추천 이유 1~2문장 생성 (한국어). 실패 시 폴백 문자열."""
     try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
         type_kr = {"buy": "매수 추천", "sell": "매도 추천", "watch": "관심 종목"}[pick_type]
         prompt = (
             f"종목: {ticker} ({name})\n"
@@ -172,8 +170,7 @@ def _gemini_reason(ticker: str, name: str, momentum: float, sentiment: float, vo
             "위 데이터를 근거로 이 종목이 왜 지금 이 판단을 받았는지 "
             "1~2문장으로 간결하게 설명해. 한국어로. 수치를 직접 언급해."
         )
-        resp = model.generate_content(prompt)
-        text = resp.text.strip()
+        text = call_gemini(prompt)
         return text[:120] if len(text) > 120 else text
     except Exception:
         return "데이터 분석 중"

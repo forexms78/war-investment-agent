@@ -2,13 +2,12 @@ import time
 import json
 from datetime import datetime
 from typing import Optional
-import google.generativeai as genai
 import os
 from dotenv import load_dotenv
+from backend.utils.gemini import call_gemini
 from backend.services.db_cache import db_get, db_set
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
 
 _signal_cache: Optional[tuple[dict, float]] = None
 SIGNAL_TTL = 7200   # 2시간
@@ -103,7 +102,6 @@ async def get_whale_signal(money_flow_assets: list[dict], fed_rate: float) -> di
     # Gemini AI 인사이트
     ai_insight = ""
     try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""당신은 글로벌 거시경제 투자 전략가입니다.
 
 현재 시장 데이터:
@@ -122,8 +120,7 @@ async def get_whale_signal(money_flow_assets: list[dict], fed_rate: float) -> di
 - Super Sell(점수 25 미만) 자산군이 있다면 보유자가 왜 지금 매도를 고려해야 하는지
 - 구체적인 투자 행동 조언 (매수/매도 모두 포함)
 한국어로 작성. 숫자와 근거를 포함할 것."""
-        response = model.generate_content(prompt)
-        ai_insight = response.text
+        ai_insight = call_gemini(prompt)
     except Exception:
         ai_insight = f"현재 Fed 금리 {fed_rate}% 환경에서 {top_asset}이(가) 가장 유망한 투자처로 분석됩니다."
 

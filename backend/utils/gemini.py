@@ -2,11 +2,12 @@ import os
 import re
 import time
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
 
@@ -40,23 +41,7 @@ _MOCK_RESPONSES = {
   }
 }""",
     "report": """## 요약
-현재 포트폴리오는 미-중 기술 패권 경쟁으로 인해 높은 지정학적 리스크에 노출되어 있습니다.
-특히 반도체(NVDA) 섹터가 수출 규제의 직접적 영향권에 있으며, 기술(AAPL) 섹터도 공급망 압박을 받고 있습니다.
-단기적으로는 방어적 포지션 유지를 권고합니다.
-
-## 주요 위협 요소
-- 미국의 대중 반도체 수출 통제 강화
-- AI 칩 수요 급증과 공급망 불안정성
-- 대만해협 긴장 고조 가능성
-
-## 종목별 리스크 평가
-- **NVDA**: 리스크 8/10 (매우높음) — H100/H800 중국 수출 제한 직접 타격
-- **AAPL**: 리스크 7/10 (높음) — 중국 의존 공급망 및 현지 판매 압박
-
-## 투자자 권고사항
-1. NVDA 비중 10-15% 축소, 방산/에너지 ETF로 분산 검토
-2. AAPL 보유 유지하되 손절 라인(-15%) 설정
-3. 지정학 긴장 완화 시점까지 현금 비중 20% 확보""",
+현재 포트폴리오는 미-중 기술 패권 경쟁으로 인해 높은 지정학적 리스크에 노출되어 있습니다.""",
 }
 
 _last_call_time: float = 0.0
@@ -73,16 +58,16 @@ def call_gemini(prompt: str, system: str = "", retries: int = 3) -> str:
     global _last_call_time, _call_count
 
     if MOCK_MODE:
-        time.sleep(0.5)  # 실제 호출처럼 약간의 딜레이
+        time.sleep(0.5)
         _call_count += 1
         if _call_count % 2 == 1:
             return _MOCK_RESPONSES["analyzer"]
         return _MOCK_RESPONSES["report"]
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+    config = types.GenerateContentConfig(
         system_instruction=system if system else None,
     )
+
     for attempt in range(retries):
         elapsed = time.time() - _last_call_time
         if elapsed < _MIN_INTERVAL:
@@ -90,7 +75,11 @@ def call_gemini(prompt: str, system: str = "", retries: int = 3) -> str:
 
         try:
             _last_call_time = time.time()
-            response = model.generate_content(prompt)
+            response = _client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=config,
+            )
             return response.text.strip()
         except Exception as e:
             err = str(e)
