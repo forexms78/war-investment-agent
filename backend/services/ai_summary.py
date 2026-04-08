@@ -48,14 +48,27 @@ def generate_stock_insight(ticker: str, name: str, change_pct: float, news_title
 
 _market_driver_cache: tuple[dict, float] | None = None
 _MARKET_DRIVER_TTL = 1800  # 30분
+_MARKET_DRIVER_DB_KEY = "market_driver"
 
 
 def generate_market_drivers(headlines: list[dict]) -> dict:
     """오늘의 마켓 드라이버 3개 선정 — Gemini가 전체 헤드라인에서 시장 변동성 핵심 뉴스 추출"""
     global _market_driver_cache
     now = time.time()
+
+    # 메모리 캐시
     if _market_driver_cache and now - _market_driver_cache[1] < _MARKET_DRIVER_TTL:
         return _market_driver_cache[0]
+
+    # DB 캐시 (서버 재시작 후에도 유지)
+    try:
+        from backend.services.db_cache import db_get, db_set
+        cached = db_get(_MARKET_DRIVER_DB_KEY, ttl=_MARKET_DRIVER_TTL)
+        if cached:
+            _market_driver_cache = (cached, now)
+            return cached
+    except Exception:
+        pass
 
     top = headlines[:20]
     headline_text = "\n".join(
@@ -96,6 +109,10 @@ def generate_market_drivers(headlines: list[dict]) -> dict:
 
         result = {"drivers": drivers, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
         _market_driver_cache = (result, now)
+        try:
+            db_set(_MARKET_DRIVER_DB_KEY, result)
+        except Exception:
+            pass
         return result
     except Exception:
         return {"drivers": [], "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
