@@ -46,6 +46,61 @@ def generate_stock_insight(ticker: str, name: str, change_pct: float, news_title
         return f"{name} 종목 분석 중입니다."
 
 
+_market_driver_cache: tuple[dict, float] | None = None
+_MARKET_DRIVER_TTL = 1800  # 30분
+
+
+def generate_market_drivers(headlines: list[dict]) -> dict:
+    """오늘의 마켓 드라이버 3개 선정 — Gemini가 전체 헤드라인에서 시장 변동성 핵심 뉴스 추출"""
+    global _market_driver_cache
+    now = time.time()
+    if _market_driver_cache and now - _market_driver_cache[1] < _MARKET_DRIVER_TTL:
+        return _market_driver_cache[0]
+
+    top = headlines[:20]
+    headline_text = "\n".join(
+        f"[{i}] {item['title']} ({item.get('source', '')})"
+        for i, item in enumerate(top)
+    )
+
+    prompt = f"""다음은 오늘의 글로벌 뉴스 헤드라인입니다.
+
+{headline_text}
+
+투자자 관점에서 오늘 금융 시장(주식·채권·환율·코인·원자재)에 가장 큰 영향을 미치는 핵심 뉴스 3개를 골라 아래 JSON으로만 응답하세요. 코드블록 없이 순수 JSON만:
+{{
+  "drivers": [
+    {{
+      "idx": 0,
+      "headline": "15자 이내 핵심 요약 (한국어)",
+      "impact": "이 뉴스가 어떤 자산에 어떤 영향을 주는지 한 문장 (한국어)",
+      "direction": "bullish|bearish|mixed"
+    }}
+  ]
+}}
+반드시 3개, 오늘 시장을 가장 크게 움직이는 순서로 나열하세요."""
+
+    try:
+        raw = call_gemini(prompt, SYSTEM)
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        parsed = json.loads(match.group() if match else raw)
+        drivers = parsed.get("drivers", [])[:3]
+
+        # 원본 헤드라인 URL 매핑
+        for d in drivers:
+            idx = d.get("idx", -1)
+            if 0 <= idx < len(top):
+                d["url"] = top[idx].get("url", "")
+                d["source"] = top[idx].get("source", "")
+                d["original_title"] = top[idx].get("title", "")
+
+        result = {"drivers": drivers, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        _market_driver_cache = (result, now)
+        return result
+    except Exception:
+        return {"drivers": [], "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
 _news_ai_cache: tuple[dict, float] | None = None
 _NEWS_AI_TTL = 1800  # 30분
 

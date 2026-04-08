@@ -48,6 +48,8 @@ export default function Home() {
   const [whaleSignal, setWhaleSignal] = useState<WhaleSignal | null>(null);
   const [loadingInvestors, setLoadingInvestors] = useState(true);
   const [initialFetchedAt, setInitialFetchedAt] = useState<Date | null>(null);
+  const [marketDrivers, setMarketDrivers] = useState<{ headline: string; impact: string; direction: string; url?: string; source?: string }[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(true);
 
   // 마켓 서브 데이터 (lazy)
   const [coins, setCoins] = useState<CoinData[]>([]);
@@ -73,6 +75,14 @@ export default function Home() {
     setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
   };
+
+  // 마켓 드라이버 (초기 로드)
+  useEffect(() => {
+    fetch(`${API}/market-driver`)
+      .then(r => r.json())
+      .then(data => setMarketDrivers(data.drivers || []))
+      .finally(() => setLoadingDrivers(false));
+  }, []);
 
   // 초기 로드
   useEffect(() => {
@@ -302,6 +312,57 @@ EFFR은 은행들이 실제로 하루짜리 초단기 자금을 빌릴 때 적�
       )}
 
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
+
+        {/* 오늘의 마켓 드라이버 */}
+        <div style={{ marginBottom: 28 }}>
+          {loadingDrivers ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {[0,1,2].map(i => <SkeletonCard key={i} height={72} />)}
+            </div>
+          ) : marketDrivers.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {marketDrivers.map((d, i) => {
+                const color = d.direction === "bullish" ? "var(--green)" : d.direction === "bearish" ? "var(--red)" : "#f59e0b";
+                const tag = d.direction === "bullish" ? "강세" : d.direction === "bearish" ? "약세" : "혼조";
+                return (
+                  <a
+                    key={i}
+                    href={d.url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ textDecoration: "none" }}
+                  >
+                    <div style={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderLeft: `3px solid ${color}`,
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      cursor: d.url ? "pointer" : "default",
+                      transition: "border-color 0.15s",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+                          color, background: `${color}18`,
+                          border: `1px solid ${color}40`,
+                          borderRadius: 4, padding: "1px 5px",
+                        }}>{tag}</span>
+                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{d.source}</span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4, lineHeight: 1.3 }}>
+                        {d.headline}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                        {d.impact}
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Whale Signal */}
         {activeTab === "signal" && (

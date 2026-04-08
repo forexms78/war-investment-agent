@@ -11,10 +11,10 @@ from backend.services.news import (
     fetch_investor_news, fetch_stock_news,
     fetch_crypto_news, fetch_realestate_news,
     fetch_commodity_news, fetch_bond_news, fetch_market_news_all,
-    fetch_stock_market_news, fetch_asia_market_news,
+    fetch_stock_market_news, fetch_asia_market_news, fetch_top_headlines,
 )
 from backend.services.financial import get_stock_data, get_multiple_stocks_parallel
-from backend.services.ai_summary import generate_investor_insight, generate_stock_insight, generate_news_analysis
+from backend.services.ai_summary import generate_investor_insight, generate_stock_insight, generate_news_analysis, generate_market_drivers
 from backend.services.coins import get_coin_markets, get_coin_detail
 from backend.services.commodities import get_all_commodities
 from backend.services.whale_signal import get_whale_signal
@@ -352,6 +352,18 @@ async def bonds():
         ),
     }
     return {"data": data, "news": news}
+
+
+# ─────────────────────────────────────────────
+# 오늘의 마켓 드라이버
+# ─────────────────────────────────────────────
+
+@app.get("/market-driver")
+async def market_driver():
+    """글로벌 헤드라인 → Gemini가 오늘 시장을 움직이는 핵심 뉴스 3개 선정"""
+    headlines = await _run(fetch_top_headlines, 20)
+    result = await _run(generate_market_drivers, headlines)
+    return result
 
 
 # ─────────────────────────────────────────────

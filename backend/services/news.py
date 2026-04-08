@@ -178,6 +178,51 @@ def fetch_asia_market_news(limit: int = 6) -> list[dict]:
     return []
 
 
+def fetch_top_headlines(limit: int = 20) -> list[dict]:
+    """글로벌 종합 헤드라인 — 비즈니스 + 세계 뉴스 병합 (마켓 드라이버 분석용)"""
+    business_url = "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en&gl=US&ceid=US:en"
+    world_url = "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en&gl=US&ceid=US:en"
+
+    seen_titles: set[str] = set()
+    result = []
+
+    for url in [business_url, world_url]:
+        cache_key = f"top_headlines_{url}"
+        now = time.time()
+        cached = _news_cache.get(cache_key)
+        if cached and now - cached[1] < NEWS_CACHE_TTL:
+            entries = cached[0]
+        else:
+            try:
+                feed = feedparser.parse(url)
+                entries = []
+                for entry in feed.entries:
+                    title = entry.get("title", "")
+                    link = entry.get("link", "")
+                    source = entry.get("source", {}).get("title", "") if hasattr(entry.get("source", ""), "get") else ""
+                    if not title:
+                        continue
+                    entries.append({
+                        "title": title,
+                        "description": entry.get("summary", ""),
+                        "source": source,
+                        "published_at": _parse_published(entry),
+                        "url": link,
+                        "image_url": "",
+                    })
+                _news_cache[cache_key] = (entries, time.time())
+            except Exception:
+                entries = []
+
+        for item in entries:
+            title_key = item["title"][:40].lower()
+            if title_key not in seen_titles:
+                seen_titles.add(title_key)
+                result.append(item)
+
+    return result[:limit]
+
+
 def fetch_market_news_all() -> dict[str, list[dict]]:
     return {
         "주식": fetch_stock_market_news(6),
