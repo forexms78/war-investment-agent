@@ -50,9 +50,19 @@ export default function TodayPicksPage() {
   const [error, setError] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [marketDrivers, setMarketDrivers] = useState<{ headline: string; impact: string; direction: string; url?: string; source?: string }[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(true);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "light");
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/market-driver`)
+      .then(r => r.json())
+      .then(d => setMarketDrivers(d.drivers || []))
+      .catch(() => {})
+      .finally(() => setLoadingDrivers(false));
   }, []);
 
   const toggleTheme = () => {
@@ -163,6 +173,56 @@ export default function TodayPicksPage() {
               {data?.generated_at && ` · ${fmtUpdateTime(data.generated_at)} 갱신`}
             </span>
           </div>
+        </div>
+
+        {/* 오늘의 마켓 드라이버 */}
+        <div style={{ marginBottom: 28 }}>
+          {loadingDrivers ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {[0,1,2].map(i => <SkeletonCard key={i} height={72} />)}
+            </div>
+          ) : marketDrivers.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {marketDrivers.map((d, i) => {
+                const color = d.direction === "bullish" ? "var(--green)" : d.direction === "bearish" ? "var(--red)" : "#f59e0b";
+                const tag = d.direction === "bullish" ? "강세" : d.direction === "bearish" ? "약세" : "혼조";
+                return (
+                  <a
+                    key={i}
+                    href={d.url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ textDecoration: "none" }}
+                  >
+                    <div style={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderLeft: `3px solid ${color}`,
+                      borderRadius: 10,
+                      padding: "12px 14px",
+                      cursor: d.url ? "pointer" : "default",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+                          color, background: `${color}18`,
+                          border: `1px solid ${color}40`,
+                          borderRadius: 4, padding: "1px 5px",
+                        }}>{tag}</span>
+                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{d.source}</span>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4, lineHeight: 1.3 }}>
+                        {d.headline}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                        {d.impact}
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 로딩 스켈레톤 */}
