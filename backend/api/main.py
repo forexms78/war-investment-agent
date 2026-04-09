@@ -116,29 +116,21 @@ async def list_investors():
 
 @app.get("/investors/{investor_id}")
 async def get_investor_detail(investor_id: str):
-    """투자자 상세: 포트폴리오 + 주가 + 뉴스 + AI 인사이트 (DB-First, 30분 캐시)"""
+    """투자자 상세 (DB-Only — 스케줄러가 1시간마다 Gemini 인사이트 포함 갱신)"""
     cache_key = f"investor_detail_{investor_id}"
-    cached = await _run(db_get, cache_key, 1800)
+    cached = await _run(db_get_stale, cache_key)
     if cached:
         return cached
 
+    # DB에 없으면 Gemini 없이 주가+뉴스만 즉시 반환 (스케줄러가 나중에 insight 채움)
     investor = get_investor(investor_id)
     if not investor:
         raise HTTPException(status_code=404, detail="투자자를 찾을 수 없습니다")
 
     tickers = [p["ticker"] for p in investor["portfolio"]]
-
-    # 주가·뉴스 병렬 조회
     prices_task = get_multiple_stocks_parallel(tickers)
     news_task = _run(fetch_investor_news, investor["name"])
     prices, news = await asyncio.gather(prices_task, news_task)
-
-    news_titles = [n["title"] for n in news if n.get("title")]
-    insight = await _run(
-        generate_investor_insight,
-        investor["name"], investor["firm"],
-        investor["recent_moves"], news_titles,
-    )
 
     portfolio_with_prices = [
         {
@@ -151,7 +143,7 @@ async def get_investor_detail(investor_id: str):
         for holding in investor["portfolio"]
     ]
 
-    result = {**investor, "portfolio": portfolio_with_prices, "news": news, "insight": insight}
+    result = {**investor, "portfolio": portfolio_with_prices, "news": news, "insight": ""}
     await _run(db_set, cache_key, result)
     return result
 
@@ -207,13 +199,14 @@ async def recommendations():
 
 @app.get("/stocks/{ticker}")
 async def stock_detail(ticker: str, period: str = "30d"):
-    """종목 상세: 주가 차트 + 뉴스 + AI 분석 (DB-First, 15분 캐시)"""
+    """종목 상세 (DB-Only — 스케줄러가 1시간마다 Gemini 인사이트 포함 갱신)"""
     ticker = ticker.upper()
     cache_key = f"stock_detail_{ticker}_{period}"
-    cached = await _run(db_get, cache_key, 900)
+    cached = await _run(db_get_stale, cache_key)
     if cached:
         return cached
 
+    # DB에 없으면 Gemini 없이 주가+뉴스만 즉시 반환 (스케줄러가 나중에 insight 채움)
     data_task = _run(get_stock_data, ticker, period)
     news_task = _run(fetch_stock_news, ticker)
     data, news = await asyncio.gather(data_task, news_task)
@@ -221,14 +214,7 @@ async def stock_detail(ticker: str, period: str = "30d"):
     if "error" in data:
         raise HTTPException(status_code=404, detail="종목 데이터를 가져올 수 없습니다")
 
-    news_titles = [n["title"] for n in news if n.get("title")]
-    insight = await _run(
-        generate_stock_insight,
-        ticker, data.get("name", ticker),
-        data.get("change_30d_pct", 0), news_titles,
-    )
-
-    result = {**data, "news": news, "insight": insight}
+    result = {**data, "news": news, "insight": ""}
     await _run(db_set, cache_key, result)
     return result
 
