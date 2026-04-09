@@ -109,16 +109,22 @@ async def refresh_today_picks():
 
 
 async def warm_all_caches():
-    """앱 시작 시 캐시 웜업 — 주가(즉시) + AI 분석(백그라운드, 30~90초 소요)"""
+    """앱 시작 시 캐시 웜업 — DB에 없는 데이터만 갱신"""
+    from backend.services.db_cache import db_get_stale
     logger.info("🔥 [scheduler] 캐시 웜업 시작...")
-    # 주가 데이터는 빠름 (~10초), AI 분석은 느리지만 백그라운드 실행이라 서버 응답에 영향 없음
+    # 주가 데이터는 항상 갱신 (빠름 ~10초)
     await asyncio.gather(
         refresh_investors(),
         refresh_stocks_hot(),
         refresh_recommendations(),
-        refresh_market_driver(),   # 30~35초 (Gemini) — 백그라운드에서 실행됨
         return_exceptions=True,
     )
+    # Gemini 호출은 DB에 데이터 없을 때만 — 레이트 리밋 방지
+    if not db_get_stale("market_driver"):
+        logger.info("🔥 [scheduler] market_driver 없음 → Gemini 갱신")
+        await refresh_market_driver()
+    else:
+        logger.info("🔥 [scheduler] market_driver DB에 존재 → Gemini 스킵")
     logger.info("🔥 [scheduler] 캐시 웜업 완료")
 
 
