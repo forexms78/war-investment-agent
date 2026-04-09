@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +24,17 @@ from backend.services.fed_rate import get_fed_rate
 from backend.services.today_picks import get_today_picks
 from backend.services.db_cache import db_get, db_set
 
-app = FastAPI(title="Whalyx API", version="2.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from backend.services.scheduler import create_scheduler, warm_all_caches
+    scheduler = create_scheduler()
+    scheduler.start()
+    asyncio.create_task(warm_all_caches())
+    yield
+    scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Whalyx API", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,7 +86,11 @@ async def debug_gemini():
 
 @app.get("/investors")
 async def list_investors():
-    """전체 투자자 목록 + 각 투자자 상위 3개 종목 주가 (병렬 조회)"""
+    """전체 투자자 목록 + 각 투자자 상위 3개 종목 주가 (DB-First)"""
+    cached = await _run(db_get, "investors_list", 900)
+    if cached:
+        return cached
+
     investors = get_all_investors()
     all_tickers = list({t for inv in investors for t in inv["top_holdings"]})
     prices = await get_multiple_stocks_parallel(all_tickers)
@@ -94,12 +109,19 @@ async def list_investors():
                 for t in inv["top_holdings"]
             ],
         })
-    return {"investors": result}
+    data = {"investors": result}
+    await _run(db_set, "investors_list", data)
+    return data
 
 
 @app.get("/investors/{investor_id}")
 async def get_investor_detail(investor_id: str):
-    """투자자 상세: 포트폴리오 + 주가 + 뉴스 + AI 인사이트 (병렬)"""
+    """투자자 상세: 포트폴리오 + 주가 + 뉴스 + AI 인사이트 (DB-First, 30분 캐시)"""
+    cache_key = f"investor_detail_{investor_id}"
+    cached = await _run(db_get, cache_key, 1800)
+    if cached:
+        return cached
+
     investor = get_investor(investor_id)
     if not investor:
         raise HTTPException(status_code=404, detail="투자자를 찾을 수 없습니다")
@@ -129,7 +151,9 @@ async def get_investor_detail(investor_id: str):
         for holding in investor["portfolio"]
     ]
 
-    return {**investor, "portfolio": portfolio_with_prices, "news": news, "insight": insight}
+    result = {**investor, "portfolio": portfolio_with_prices, "news": news, "insight": insight}
+    await _run(db_set, cache_key, result)
+    return result
 
 
 # ─────────────────────────────────────────────
@@ -138,16 +162,26 @@ async def get_investor_detail(investor_id: str):
 
 @app.get("/stocks/hot")
 async def hot_stocks():
-    """유명 투자자들이 주목하는 핫 종목"""
+    """유명 투자자들이 주목하는 핫 종목 (DB-First)"""
+    cached = await _run(db_get, "stocks_hot", 900)
+    if cached:
+        return cached
+
     tickers = get_hot_tickers()
     stocks = await get_multiple_stocks_parallel(tickers)
     result = [data for ticker in tickers if "error" not in (data := stocks.get(ticker, {}))]
-    return {"stocks": result}
+    data = {"stocks": result}
+    await _run(db_set, "stocks_hot", data)
+    return data
 
 
 @app.get("/stocks/recommendations")
 async def recommendations():
-    """매수/매도 추천 종목 + 실시간 주가"""
+    """매수/매도 추천 종목 + 실시간 주가 (DB-First)"""
+    cached = await _run(db_get, "stocks_recommendations", 900)
+    if cached:
+        return cached
+
     buys = get_buy_recommendations()
     sells = get_sell_recommendations()
 
@@ -166,13 +200,20 @@ async def recommendations():
         for r in sells
     ]
 
-    return {"buy": buy_result, "sell": sell_result}
+    data = {"buy": buy_result, "sell": sell_result}
+    await _run(db_set, "stocks_recommendations", data)
+    return data
 
 
 @app.get("/stocks/{ticker}")
 async def stock_detail(ticker: str, period: str = "30d"):
-    """종목 상세: 주가 차트 + 뉴스 + AI 분석"""
+    """종목 상세: 주가 차트 + 뉴스 + AI 분석 (DB-First, 15분 캐시)"""
     ticker = ticker.upper()
+    cache_key = f"stock_detail_{ticker}_{period}"
+    cached = await _run(db_get, cache_key, 900)
+    if cached:
+        return cached
+
     data_task = _run(get_stock_data, ticker, period)
     news_task = _run(fetch_stock_news, ticker)
     data, news = await asyncio.gather(data_task, news_task)
@@ -187,7 +228,9 @@ async def stock_detail(ticker: str, period: str = "30d"):
         data.get("change_30d_pct", 0), news_titles,
     )
 
-    return {**data, "news": news, "insight": insight}
+    result = {**data, "news": news, "insight": insight}
+    await _run(db_set, cache_key, result)
+    return result
 
 
 # ─────────────────────────────────────────────
