@@ -223,6 +223,28 @@ def fetch_top_headlines(limit: int = 20) -> list[dict]:
     return result[:limit]
 
 
+def fetch_korean_market_news(limit: int = 6) -> list[dict]:
+    """한국 경제·투자 뉴스 (구글 뉴스 RSS 한국어판)"""
+    queries = [
+        ("주식 증시 코스피", "ko", "KR", "KR:ko"),
+        ("부동산 아파트 투자", "ko", "KR", "KR:ko"),
+        ("암호화폐 비트코인 이더리움", "ko", "KR", "KR:ko"),
+        ("금리 한국은행 금융", "ko", "KR", "KR:ko"),
+    ]
+    seen_titles: set[str] = set()
+    result: list[dict] = []
+    for q, hl, gl, ceid in queries:
+        items = _fetch_news(q, limit=4, hl=hl, gl=gl, ceid=ceid)
+        for item in items:
+            title_key = item["title"][:40].lower()
+            if title_key not in seen_titles:
+                seen_titles.add(title_key)
+                result.append(item)
+        if len(result) >= limit:
+            break
+    return result[:limit]
+
+
 def fetch_market_news_all() -> dict[str, list[dict]]:
     return {
         "주식": fetch_stock_market_news(6),
@@ -230,4 +252,5 @@ def fetch_market_news_all() -> dict[str, list[dict]]:
         "부동산": fetch_realestate_news(5),
         "광물": fetch_commodity_news(5),
         "채권": fetch_bond_news(5),
+        "한국": fetch_korean_market_news(6),
     }

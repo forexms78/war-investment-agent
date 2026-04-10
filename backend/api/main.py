@@ -300,8 +300,15 @@ async def whale_signal():
 
 @app.get("/today-picks")
 async def today_picks():
-    """오늘의 투자포인트 (DB-Only — 스케줄러가 6시간마다 FinBERT+Gemini 분석 후 갱신)"""
-    cached = await _run(db_get_stale, "today_picks")  # TTL 무시 — 스케줄러가 신선도 보장
+    """오늘의 투자포인트 — 전 자산군 뉴스 AI 분석 (news_ai 데이터 재활용, 1시간 주기)"""
+    cached = await _run(db_get_stale, "news_ai")
     if cached:
         return cached
-    return {"buy": [], "sell": [], "watch": [], "updated_at": None}
+    return {
+        "sentiment": "Neutral",
+        "sentiment_score": 50,
+        "summary": "AI 뉴스 분석을 준비 중입니다. 잠시 후 새로고침해 주세요.",
+        "themes": [],
+        "news": [],
+        "updated_at": None,
+    }
