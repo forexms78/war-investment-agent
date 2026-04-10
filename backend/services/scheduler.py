@@ -174,6 +174,9 @@ async def refresh_crypto():
         coins_task = _run_sync(get_coin_markets)
         news_task = _run_sync(fetch_crypto_news)
         coins, news = await asyncio.gather(coins_task, news_task)
+        if not coins:
+            logger.warning("⚠️ [scheduler] CoinGecko 빈 응답 — 기존 DB 유지")
+            return
         await _run_sync(db_set, "crypto", {"coins": coins, "news": news})
         logger.info("✅ [scheduler] crypto 갱신 완료")
     except Exception as e:
@@ -426,6 +429,16 @@ async def warm_all_caches():
     if not picks_cached:
         logger.info("🔥 [scheduler] today_picks DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_today_picks())
+
+    ws_cached = await _run_sync(db_get_stale, "whale_signal_full")
+    if not ws_cached:
+        logger.info("🔥 [scheduler] whale_signal DB 미스 → 즉시 1회 실행")
+        asyncio.create_task(refresh_whale_signal())
+
+    na_cached = await _run_sync(db_get_stale, "news_ai")
+    if not na_cached:
+        logger.info("🔥 [scheduler] news_ai DB 미스 → 즉시 1회 실행")
+        asyncio.create_task(refresh_news_ai())
 
 
 def create_scheduler() -> AsyncIOScheduler:
