@@ -369,7 +369,7 @@ function HeadlineCard({ headline, rank }: { headline: Headline; rank: number }) 
     >
       {/* 썸네일 */}
       <div style={{
-        width: "100%", height: 120, flexShrink: 0,
+        width: "100%", height: 200, flexShrink: 0,
         background: "var(--bg-2)",
         position: "relative", overflow: "hidden",
       }}>
