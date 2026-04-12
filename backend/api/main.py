@@ -310,6 +310,77 @@ async def whale_signal():
 # 오늘의 투자포인트
 # ─────────────────────────────────────────────
 
+@app.get("/today-movers")
+async def today_movers():
+    """카테고리별 주요 자산 급등·급락 + 관련 뉴스 (기존 DB 캐시 집계, 실시간성 보장)"""
+    crypto_data, commodity_data, stocks_data, re_data, news_ai = await asyncio.gather(
+        _run(db_get_stale, "crypto"),
+        _run(db_get_stale, "commodities"),
+        _run(db_get_stale, "stocks_hot"),
+        _run(db_get_stale, "realestate"),
+        _run(db_get_stale, "news_ai"),
+    )
+
+    # 카테고리별 뉴스 분류
+    all_news = (news_ai or {}).get("news", [])
+    news_by_cat: dict[str, list] = {}
+    for n in all_news:
+        cat = n.get("category", "")
+        news_by_cat.setdefault(cat, []).append(n)
+
+    # 코인: 24h 변동 기준 급등/급락 각 3개
+    coins = sorted(
+        (c for c in (crypto_data or {}).get("coins", []) if c.get("price_change_24h") is not None),
+        key=lambda x: x["price_change_24h"],
+    )
+    crypto_gainers = coins[-3:][::-1]
+    crypto_losers  = coins[:3]
+
+    # 광물: 30d 변동 기준 급등/급락 각 3개
+    comms = sorted(
+        (c for c in (commodity_data or {}).get("commodities", []) if c.get("change_30d_pct") is not None),
+        key=lambda x: x["change_30d_pct"],
+    )
+    comm_gainers = comms[-3:][::-1]
+    comm_losers  = comms[:3]
+
+    # 주식: 30d 수익률 기준 급등/급락 각 3개 (change_1d_pct 우선)
+    def stock_sort_key(s):
+        return s.get("change_1d_pct") if s.get("change_1d_pct") is not None else s.get("change_30d_pct", 0)
+
+    stocks_list = sorted(
+        (s for s in (stocks_data or {}).get("stocks", []) if s.get("change_30d_pct") is not None),
+        key=stock_sort_key,
+    )
+    stock_gainers = stocks_list[-3:][::-1]
+    stock_losers  = stocks_list[:3]
+
+    return {
+        "stocks": {
+            "gainers": stock_gainers,
+            "losers":  stock_losers,
+            "news":    news_by_cat.get("주식", [])[:4],
+            "period":  "30d",
+        },
+        "crypto": {
+            "gainers": crypto_gainers,
+            "losers":  crypto_losers,
+            "news":    news_by_cat.get("코인", [])[:4],
+            "period":  "24h",
+        },
+        "commodities": {
+            "gainers": comm_gainers,
+            "losers":  comm_losers,
+            "news":    news_by_cat.get("광물", [])[:4],
+            "period":  "30d",
+        },
+        "realestate": {
+            "indicators": (re_data or {}).get("indicators", []),
+            "news": (re_data or {}).get("news", [])[:4] or news_by_cat.get("부동산", [])[:4],
+        },
+    }
+
+
 @app.get("/today-picks")
 async def today_picks():
     """오늘의 투자포인트 — 전 자산군 뉴스 AI 분석 (news_ai 데이터 재활용, 1시간 주기)"""
