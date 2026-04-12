@@ -34,11 +34,11 @@ interface Movers {
 
 type InvestTab = "stocks" | "crypto" | "commodities" | "realestate";
 
-const INVEST_TABS: { id: InvestTab; label: string; icon: string }[] = [
-  { id: "stocks",      label: "주식",   icon: "📈" },
-  { id: "crypto",      label: "코인",   icon: "₿"  },
-  { id: "commodities", label: "광물",   icon: "⛏"  },
-  { id: "realestate",  label: "부동산", icon: "🏢" },
+const INVEST_TABS: { id: InvestTab; label: string }[] = [
+  { id: "stocks",      label: "주식"   },
+  { id: "crypto",      label: "코인"   },
+  { id: "commodities", label: "광물"   },
+  { id: "realestate",  label: "부동산" },
 ];
 
 const SENTIMENT_COLOR = {
@@ -228,7 +228,7 @@ export default function TodayPicksPage() {
                   border: activeTab === t.id ? "1px solid var(--accent)" : "1px solid var(--border)",
                 }}
               >
-                <span>{t.icon}</span>{t.label}
+                {t.label}
               </button>
             ))}
           </div>
