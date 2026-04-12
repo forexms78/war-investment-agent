@@ -4,7 +4,8 @@ from urllib.parse import quote_plus
 from email.utils import parsedate_to_datetime
 
 _news_cache: dict[str, tuple[list[dict], float]] = {}
-NEWS_CACHE_TTL = 900  # 15분
+NEWS_CACHE_TTL    = 900  # 15분 — 검색 쿼리 캐시
+HEADLINE_CACHE_TTL = 300  # 5분  — 헤드라인 RSS 캐시
 
 _BLOCKED_DOMAINS = {
     "pypi.org", "github.com", "npmjs.com", "stackoverflow.com",
@@ -206,12 +207,12 @@ def fetch_asia_market_news(limit: int = 6) -> list[dict]:
     return []
 
 
-def _fetch_rss_headlines(rss_url: str) -> list[dict]:
+def _fetch_rss_headlines(rss_url: str, ttl: float = HEADLINE_CACHE_TTL) -> list[dict]:
     """RSS URL에서 헤드라인 목록 파싱 (캐시 포함)"""
     cache_key = f"top_headlines_{rss_url}"
     now = time.time()
     cached = _news_cache.get(cache_key)
-    if cached and now - cached[1] < NEWS_CACHE_TTL:
+    if cached and now - cached[1] < ttl:
         return cached[0]
     try:
         feed = feedparser.parse(rss_url)
@@ -236,22 +237,24 @@ def _fetch_rss_headlines(rss_url: str) -> list[dict]:
         return []
 
 
-def fetch_top_headlines(limit: int = 20) -> list[dict]:
-    """글로벌+한국 종합 헤드라인 — 한국 비즈니스 우선, 미국 글로벌 보완 (마켓 드라이버 분석용)"""
+def fetch_korean_headlines(limit: int = 15) -> list[dict]:
+    """한국어 Google News 최상위 헤드라인 — 한국 사용자 화면 기준 글로벌 뉴스 (한국어)
+    Gemini 분석 없이 RSS만 5분 캐시로 빠르게 반환.
+    """
     rss_urls = [
-        # 한국 비즈니스·경제 (우선 반영)
+        # 메인 탑스토리 (한국 사용자 기준)
+        "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko",
+        # 비즈니스·경제 섹션
         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko",
+        # 세계 뉴스 섹션
         "https://news.google.com/rss/headlines/section/topic/WORLD?hl=ko&gl=KR&ceid=KR:ko",
-        # 글로벌 보완
-        "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en&gl=US&ceid=US:en",
     ]
 
     seen_titles: set[str] = set()
-    result = []
+    result: list[dict] = []
 
     for url in rss_urls:
-        for item in _fetch_rss_headlines(url):
+        for item in _fetch_rss_headlines(url, ttl=HEADLINE_CACHE_TTL):
             title_key = item["title"][:40].lower()
             if title_key not in seen_titles:
                 seen_titles.add(title_key)
@@ -260,6 +263,11 @@ def fetch_top_headlines(limit: int = 20) -> list[dict]:
             break
 
     return result[:limit]
+
+
+def fetch_top_headlines(limit: int = 20) -> list[dict]:
+    """Gemini 마켓 드라이버 분석용 헤드라인 — 한국어 우선, 글로벌 보완"""
+    return fetch_korean_headlines(limit)
 
 
 def fetch_korean_market_news(limit: int = 6) -> list[dict]:

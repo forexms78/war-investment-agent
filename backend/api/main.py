@@ -236,6 +236,18 @@ async def bonds():
 
 
 # ─────────────────────────────────────────────
+# 한국어 헤드라인 (Gemini 없음, 5분 RSS 캐시)
+# ─────────────────────────────────────────────
+
+@app.get("/headlines")
+async def headlines(limit: int = 10):
+    """한국어 Google News 최신 헤드라인 — Gemini 분석 없이 RSS 직접 반환 (5분 캐시)"""
+    from backend.services.news import fetch_korean_headlines
+    items = await _run(fetch_korean_headlines, limit)
+    return {"headlines": items, "total": len(items)}
+
+
+# ─────────────────────────────────────────────
 # 오늘의 마켓 드라이버
 # ─────────────────────────────────────────────
 
