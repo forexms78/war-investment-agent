@@ -102,10 +102,15 @@ def _is_junk_url(url: str) -> bool:
 
 
 def _parse_published(entry) -> str:
-    try:
-        return parsedate_to_datetime(entry.published).isoformat()
-    except Exception:
-        return ""
+    """updated > published 순서로 최신 날짜 반환"""
+    for field in ("updated", "published"):
+        try:
+            val = getattr(entry, field, None)
+            if val:
+                return parsedate_to_datetime(val).isoformat()
+        except Exception:
+            continue
+    return ""
 
 
 def _extract_image(entry) -> str:
