@@ -19,6 +19,7 @@ Gemini 호출 원칙:
 import asyncio
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -399,6 +400,24 @@ async def refresh_today_picks():
         logger.error(f"❌ [scheduler] today_picks 갱신 실패: {e}")
 
 
+async def send_telegram_morning():
+    """텔레그램 오전 시황 (KST 07:00 = UTC 22:00)"""
+    from backend.services.telegram_notifier import send_news_to_telegram
+    await _run_sync(send_news_to_telegram, 7)
+
+
+async def send_telegram_lunch():
+    """텔레그램 점심 시황 (KST 12:00 = UTC 03:00)"""
+    from backend.services.telegram_notifier import send_news_to_telegram
+    await _run_sync(send_news_to_telegram, 12)
+
+
+async def send_telegram_evening():
+    """텔레그램 저녁 시황 (KST 18:00 = UTC 09:00)"""
+    from backend.services.telegram_notifier import send_news_to_telegram
+    await _run_sync(send_news_to_telegram, 18)
+
+
 async def warm_all_caches():
     """앱 시작 시 캐시 웜업 — Gemini 없는 데이터 전부 즉시 갱신
     Gemini 잡(whale_signal·news_ai·investor_details·hot_stock_details·market_driver·today_picks)은
@@ -460,4 +479,8 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(refresh_market_driver,     "interval", minutes=30, id="market_driver",   max_instances=1)
     scheduler.add_job(refresh_whale_signal,      "interval", hours=6,  id="whale_signal",      max_instances=1)
     scheduler.add_job(refresh_today_picks,       "interval", hours=6,  id="today_picks",       max_instances=1)
+    # ── 텔레그램 뉴스 발송 — KST 07:00 / 12:00 / 18:00 (UTC 22:00 / 03:00 / 09:00) ──
+    scheduler.add_job(send_telegram_morning, CronTrigger(hour=22, minute=0, timezone="UTC"), id="telegram_morning", max_instances=1)
+    scheduler.add_job(send_telegram_lunch,   CronTrigger(hour=3,  minute=0, timezone="UTC"), id="telegram_lunch",   max_instances=1)
+    scheduler.add_job(send_telegram_evening, CronTrigger(hour=9,  minute=0, timezone="UTC"), id="telegram_evening", max_instances=1)
     return scheduler
