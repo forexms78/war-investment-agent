@@ -21,7 +21,7 @@ SLOT_LABELS = {
 
 def _build_message(news_items: list[dict], slot_hour: int) -> str:
     label = SLOT_LABELS.get(slot_hour, "시황")
-    lines = [f"[Whalyx] {label} — 주요 뉴스 5선\n"]
+    lines = []
     for i, item in enumerate(news_items[:5], 1):
         title = item.get("title", "").strip()
         url = item.get("url", "").strip()
@@ -30,7 +30,8 @@ def _build_message(news_items: list[dict], slot_hour: int) -> str:
         lines.append(f"{i}. {title}{source_tag}")
         if url:
             lines.append(f"   {url}")
-    lines.append("\nhttps://whalyx.vercel.app")
+    lines.append(f"\nWhalyx {label}")
+    lines.append("https://whalyx.vercel.app")
     return "\n".join(lines)
 
 
