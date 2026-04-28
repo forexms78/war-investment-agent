@@ -18,7 +18,7 @@ from backend.services.kis_trader import (
     calculate_quantity,
 )
 
-MAX_AMOUNT_PER_STOCK = 500_000
+MAX_AMOUNT_PER_STOCK = 200_000
 STOP_LOSS_PCT = -8.0
 PER_MAX_BUY = 20.0      # PER이 이 값 이하인 종목만 매수
 MA_SHORT = 5

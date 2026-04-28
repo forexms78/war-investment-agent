@@ -146,7 +146,7 @@ function AutoTradeContent() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", letterSpacing: "-0.02em" }}>자동매매 대시보드</h1>
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            KIS 한국투자증권 · MA5/MA20 골든크로스 신호 · 종목당 최대 50만원 · 손절 -8%
+            KIS 한국투자증권 · MA5/MA20 골든크로스 신호 · 종목당 최대 20만원 · 손절 -8%
           </p>
         </div>
 
@@ -182,7 +182,7 @@ function AutoTradeContent() {
         }}>
           <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 600 }}>리스크 설정</span>
           {[
-            { label: "종목당 최대", value: "50만원", color: "var(--gold)" },
+            { label: "종목당 최대", value: "20만원", color: "var(--gold)" },
             { label: "손절선", value: "-8%", color: "var(--red)" },
             { label: "PER 필터", value: "< 20", color: "var(--accent)" },
             { label: "신호", value: "MA5/MA20 골든크로스", color: "var(--text-secondary)" },
