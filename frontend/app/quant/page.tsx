@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import PasswordGate from "@/components/quant/PasswordGate";
-import StockCard from "@/components/quant/StockCard";
+import SignalBadge from "@/components/quant/SignalBadge";
 
 interface Stock {
   id: string;
@@ -15,7 +15,6 @@ interface Stock {
 }
 
 interface Journal {
-  ticker: string;
   forward_pe?: number;
   signal?: string;
   date: string;
@@ -23,15 +22,57 @@ interface Journal {
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
+const QuantNav = ({ active }: { active: "journal" | "autotrade" }) => (
+  <nav style={{
+    borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 100,
+    background: "var(--header-bg)", backdropFilter: "blur(16px)",
+  }}>
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Link href="/dashboard" style={{
+          width: 30, height: 30, borderRadius: 8, background: "var(--accent)",
+          display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none",
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>W</span>
+        </Link>
+        <Link href="/dashboard" style={{ textDecoration: "none", color: "inherit" }}>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>Whalyx</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 6 }}>Quant</span>
+        </Link>
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        {[
+          { href: "/quant", label: "리서치 저널", id: "journal" },
+          { href: "/autotrade", label: "자동매매", id: "autotrade" },
+        ].map(({ href, label, id }) => {
+          const isActive = active === id;
+          return (
+            <Link key={href} href={href} style={{
+              padding: "5px 14px", borderRadius: 8, fontSize: 13, fontWeight: isActive ? 600 : 400,
+              textDecoration: "none",
+              background: isActive ? "var(--accent-dim)" : "transparent",
+              border: isActive ? "1px solid var(--accent-glow)" : "1px solid transparent",
+              color: isActive ? "var(--accent)" : "var(--text-secondary)",
+            }}>
+              {label}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  </nav>
+);
+
 function QuantResearchJournal() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [journals, setJournals] = useState<Record<string, Journal>>({});
   const [loading, setLoading] = useState(true);
   const [newTicker, setNewTicker] = useState("");
+  const [newMarket, setNewMarket] = useState<"US" | "KR">("US");
   const [adding, setAdding] = useState(false);
 
   async function load() {
-    const res = await fetch(`${API}/quant/stocks`).then((r) => r.json());
+    const res = await fetch(`${API}/quant/stocks`).then((r) => r.json()).catch(() => []);
     const list: Stock[] = Array.isArray(res) ? res : [];
     setStocks(list);
 
@@ -40,6 +81,7 @@ function QuantResearchJournal() {
         fetch(`${API}/quant/journal/${s.ticker}`)
           .then((r) => r.json())
           .then((j) => ({ ticker: s.ticker, entry: Array.isArray(j) ? j[0] : null }))
+          .catch(() => ({ ticker: s.ticker, entry: null }))
       )
     );
     const map: Record<string, Journal> = {};
@@ -56,95 +98,167 @@ function QuantResearchJournal() {
     e.preventDefault();
     if (!newTicker.trim()) return;
     setAdding(true);
+    const t = newTicker.trim().toUpperCase();
     await fetch(`${API}/quant/stocks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker: newTicker.trim().toUpperCase(), market: "US", name: newTicker.trim().toUpperCase() }),
+      body: JSON.stringify({ ticker: t, market: newMarket, name: t }),
     });
     setNewTicker("");
     await load();
     setAdding(false);
   }
 
+  const signalColor = (sig?: string) =>
+    sig === "buy" ? "var(--green)" : sig === "sell" ? "var(--red)" : "var(--gold)";
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <nav style={{
-        borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 100,
-        background: "var(--header-bg)", backdropFilter: "blur(16px)",
-      }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Link href="/dashboard" style={{
-              width: 30, height: 30, borderRadius: 8, background: "var(--accent)",
-              display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none",
-            }}>
-              <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>W</span>
-            </Link>
-            <Link href="/dashboard" style={{ textDecoration: "none", color: "inherit" }}>
-              <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>Whalyx</span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 6 }}>Quant</span>
-            </Link>
-          </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            {[
-              { href: "/quant", label: "리서치 저널", active: true },
-              { href: "/autotrade", label: "자동매매", active: false },
-            ].map(({ href, label, active }) => (
-              <Link key={href} href={href} style={{
-                padding: "5px 14px", borderRadius: 8, fontSize: 13, fontWeight: active ? 600 : 400,
-                textDecoration: "none",
-                background: active ? "var(--accent-dim)" : "transparent",
-                border: active ? "1px solid var(--accent-glow)" : "1px solid transparent",
-                color: active ? "var(--accent)" : "var(--text-secondary)",
-              }}>
-                {label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </nav>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-primary)" }}>
+      <QuantNav active="journal" />
 
-      <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: 24 }}>
+
         <div>
-          <h1 className="text-2xl font-bold">리서치 저널</h1>
-          <p className="text-gray-500 text-sm mt-1">AI 분석 텍스트를 붙여넣어 퀀트 지표를 계산하고 기록합니다.</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: "0 0 4px", letterSpacing: "-0.02em" }}>리서치 저널</h1>
+          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
+            종목별 AI 분석 텍스트를 붙여넣어 퀀트 지표를 계산하고 기록합니다.
+          </p>
         </div>
 
-        <form onSubmit={addStock} className="flex gap-2">
+        {/* 종목 추가 폼 */}
+        <form onSubmit={addStock} style={{ display: "flex", gap: 8 }}>
           <input
             value={newTicker}
             onChange={(e) => setNewTicker(e.target.value)}
-            placeholder="종목 티커 추가 (예: AAPL, 005930)"
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm text-white outline-none focus:border-blue-500"
+            placeholder="티커 입력 (예: AAPL, 005930)"
+            style={{
+              flex: 1, background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 8, padding: "9px 14px", color: "var(--text-primary)",
+              fontSize: 13, outline: "none",
+            }}
+            onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+            onBlur={e => (e.target.style.borderColor = "var(--border)")}
           />
+          <select
+            value={newMarket}
+            onChange={e => setNewMarket(e.target.value as "US" | "KR")}
+            style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 8, padding: "9px 12px", color: "var(--text-secondary)",
+              fontSize: 13, outline: "none", cursor: "pointer",
+            }}
+          >
+            <option value="US">US</option>
+            <option value="KR">KR</option>
+          </select>
           <button
             type="submit"
             disabled={adding}
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            style={{
+              background: "var(--accent)", color: "#fff", border: "none",
+              borderRadius: 8, padding: "9px 20px", fontSize: 13, fontWeight: 600,
+              cursor: adding ? "not-allowed" : "pointer", opacity: adding ? 0.6 : 1,
+              whiteSpace: "nowrap",
+            }}
           >
-            {adding ? "추가 중..." : "추가"}
+            {adding ? "추가 중..." : "종목 추가"}
           </button>
         </form>
 
+        {/* 종목 목록 */}
         {loading ? (
-          <p className="text-gray-500 text-center py-12">로딩 중...</p>
+          <p style={{ color: "var(--text-muted)", textAlign: "center", padding: "48px 0", fontSize: 13 }}>로딩 중...</p>
         ) : stocks.length === 0 ? (
-          <p className="text-gray-600 text-center py-12">추적 중인 종목이 없습니다. 티커를 추가해보세요.</p>
+          <div style={{
+            background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
+            padding: "48px 24px", textAlign: "center",
+          }}>
+            <p style={{ color: "var(--text-muted)", fontSize: 14, margin: "0 0 8px" }}>추적 중인 종목이 없습니다</p>
+            <p style={{ color: "var(--text-muted)", fontSize: 12 }}>위에서 티커를 입력해 첫 종목을 추가해보세요.</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {stocks.map((s) => {
               const j = journals[s.ticker];
+              const sig = j?.signal;
               return (
-                <StockCard
+                <Link
                   key={s.ticker}
-                  ticker={s.ticker}
-                  market={s.market}
-                  name={s.name}
-                  currentPrice={s.current_price}
-                  forwardPe={j?.forward_pe}
-                  signal={j?.signal}
-                  lastDate={j?.date}
-                />
+                  href={`/quant/stocks/${s.ticker}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <div
+                    style={{
+                      background: "var(--card)", border: "1px solid var(--border)",
+                      borderRadius: 12, padding: "16px 20px",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      transition: "background 0.1s, border-color 0.1s", cursor: "pointer",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLDivElement).style.background = "var(--card-hover)";
+                      (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-light)";
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLDivElement).style.background = "var(--card)";
+                      (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)";
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                      {/* 시그널 인디케이터 */}
+                      <div style={{
+                        width: 4, height: 40, borderRadius: 2,
+                        background: sig ? signalColor(sig) : "var(--border)",
+                        flexShrink: 0,
+                      }} />
+                      <div>
+                        <p style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: 15, margin: "0 0 2px" }}>
+                          {s.name}
+                        </p>
+                        <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0 }}>
+                          {s.ticker} · {s.market}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+                      {s.current_price && (
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ color: "var(--text-muted)", fontSize: 10, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.04em" }}>현재가</p>
+                          <p style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 700, margin: 0 }}>
+                            {s.market === "KR" ? `${s.current_price.toLocaleString()}원` : `$${s.current_price.toLocaleString()}`}
+                          </p>
+                        </div>
+                      )}
+                      {j?.forward_pe && (
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ color: "var(--text-muted)", fontSize: 10, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Forward P/E</p>
+                          <p style={{ color: "var(--gold)", fontSize: 14, fontWeight: 700, margin: 0 }}>
+                            {j.forward_pe}
+                          </p>
+                        </div>
+                      )}
+                      {j?.date && (
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ color: "var(--text-muted)", fontSize: 10, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.04em" }}>최근 기록</p>
+                          <p style={{ color: "var(--text-secondary)", fontSize: 12, margin: 0 }}>
+                            {new Date(j.date).toLocaleDateString("ko-KR")}
+                          </p>
+                        </div>
+                      )}
+                      {sig ? (
+                        <SignalBadge signal={sig} size="sm" />
+                      ) : (
+                        <span style={{
+                          fontSize: 11, color: "var(--text-muted)", padding: "3px 10px",
+                          border: "1px solid var(--border)", borderRadius: 6,
+                        }}>
+                          미분석
+                        </span>
+                      )}
+                      <span style={{ color: "var(--text-muted)", fontSize: 18 }}>›</span>
+                    </div>
+                  </div>
+                </Link>
               );
             })}
           </div>

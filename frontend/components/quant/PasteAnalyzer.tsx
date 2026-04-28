@@ -50,19 +50,37 @@ export default function PasteAnalyzer({ ticker, targetPe = 30, onAnalyzed }: Pro
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl p-4">
-      <p className="text-sm text-gray-400 mb-2">AI 분석 텍스트 붙여넣기</p>
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 20px" }}>
+      <p style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 10px" }}>
+        AI 분석 텍스트 붙여넣기
+      </p>
       <textarea
-        className="w-full bg-gray-800 border border-dashed border-gray-600 rounded-lg p-3 text-sm text-gray-300 placeholder-gray-600 min-h-[80px] resize-none focus:outline-none focus:border-blue-500"
+        style={{
+          width: "100%", background: "var(--bg-2)",
+          border: "1px dashed var(--border-light)", borderRadius: 8,
+          padding: "12px 14px", fontSize: 13, color: "var(--text-secondary)",
+          minHeight: 90, resize: "none", outline: "none", boxSizing: "border-box",
+          fontFamily: "inherit",
+        }}
         placeholder="Gemini / ChatGPT 분석 결과 + 재무제표 데이터를 여기에 붙여넣으면 자동으로 파싱·계산·저장됩니다..."
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onFocus={e => (e.target.style.borderColor = "var(--accent)")}
+        onBlur={e => (e.target.style.borderColor = "var(--border-light)")}
       />
-      {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+      {error && <p style={{ color: "var(--red)", fontSize: 12, margin: "6px 0 0" }}>{error}</p>}
       <button
         onClick={handleAnalyze}
         disabled={loading || !text.trim()}
-        className="mt-2 w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold rounded-lg py-2 text-sm transition"
+        style={{
+          marginTop: 10, width: "100%",
+          background: loading || !text.trim() ? "var(--card-hover)" : "var(--accent)",
+          color: loading || !text.trim() ? "var(--text-muted)" : "#fff",
+          border: "none", borderRadius: 8, padding: "10px",
+          fontSize: 13, fontWeight: 700,
+          cursor: loading || !text.trim() ? "not-allowed" : "pointer",
+          transition: "background 0.15s",
+        }}
       >
         {loading ? "분석 중..." : "분석 실행"}
       </button>
