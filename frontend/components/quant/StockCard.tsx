@@ -17,7 +17,7 @@ export default function StockCard({
 }: Props) {
   return (
     <Link
-      href={`/stocks/${ticker}`}
+      href={`/quant/stocks/${ticker}`}
       className="block bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-xl p-4 transition"
     >
       <div className="flex justify-between items-start mb-2">

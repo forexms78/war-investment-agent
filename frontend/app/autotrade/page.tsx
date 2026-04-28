@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import SignalBadge from "@/components/quant/SignalBadge";
+import PasswordGate from "@/components/quant/PasswordGate";
 
 interface Status {
   system_on: boolean;
@@ -48,7 +49,7 @@ const REASON_LABEL: Record<string, string> = {
   take_profit: "익절",
 };
 
-export default function AutoTradePage() {
+function AutoTradeContent() {
   const [status, setStatus] = useState<Status | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
@@ -207,5 +208,13 @@ export default function AutoTradePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AutoTradePage() {
+  return (
+    <PasswordGate>
+      <AutoTradeContent />
+    </PasswordGate>
   );
 }
