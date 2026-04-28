@@ -98,24 +98,49 @@ def get_us_price_and_fundamentals(ticker: str) -> dict:
     """yfinance로 미국 주식 현재가 + PER/PBR/52주 고저"""
     import yfinance as yf
     t = yf.Ticker(ticker)
-    info = t.info
-    hist = t.history(period="2d")
-    cp = float(hist["Close"].iloc[-1]) if not hist.empty else None
+    # fast_info가 info보다 안정적 (단순 가격 데이터)
+    try:
+        fi = t.fast_info
+        cp = _safe_float(getattr(fi, "last_price", None))
+        w52_high = _safe_float(getattr(fi, "year_high", None))
+        w52_low = _safe_float(getattr(fi, "year_low", None))
+    except Exception:
+        hist = t.history(period="5d")
+        cp = float(hist["Close"].iloc[-1]) if not hist.empty else None
+        w52_high = None
+        w52_low = None
+
+    # PER/PBR은 info에서만 가져올 수 있음 — 실패해도 진행
+    per, pbr = None, None
+    try:
+        info = t.info
+        per = _safe_float(info.get("trailingPE") or info.get("forwardPE"))
+        pbr = _safe_float(info.get("priceToBook"))
+        if w52_high is None:
+            w52_high = _safe_float(info.get("fiftyTwoWeekHigh"))
+        if w52_low is None:
+            w52_low = _safe_float(info.get("fiftyTwoWeekLow"))
+    except Exception:
+        pass
+
     return {
         "current_price": cp,
-        "per": _safe_float(info.get("trailingPE") or info.get("forwardPE")),
-        "pbr": _safe_float(info.get("priceToBook")),
-        "w52_high": _safe_float(info.get("fiftyTwoWeekHigh")),
-        "w52_low": _safe_float(info.get("fiftyTwoWeekLow")),
+        "per": per,
+        "pbr": pbr,
+        "w52_high": w52_high,
+        "w52_low": w52_low,
     }
 
 
 def get_us_daily_prices(ticker: str, days: int = 30) -> list[float]:
     """yfinance로 미국 주식 일별 종가 리스트 (최신순)"""
     import yfinance as yf
-    hist = yf.Ticker(ticker).history(period=f"{days + 10}d")
-    closes = hist["Close"].dropna().tolist()
-    return list(reversed(closes))[:days]
+    try:
+        hist = yf.Ticker(ticker).history(period=f"{days + 15}d")
+        closes = hist["Close"].dropna().tolist()
+        return list(reversed(closes))[:days]
+    except Exception:
+        return []
 
 
 def _safe_float(v) -> float | None:
