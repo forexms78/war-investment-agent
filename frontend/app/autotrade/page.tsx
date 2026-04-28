@@ -185,10 +185,11 @@ function AutoTradeContent() {
         }}>
           <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 600 }}>리스크 설정</span>
           {[
-            { label: "종목당 최대", value: "20만원", color: "var(--gold)" },
-            { label: "손절선", value: "-8%", color: "var(--red)" },
-            { label: "PER 필터", value: "< 20", color: "var(--accent)" },
-            { label: "신호", value: "MA5/MA20 골든크로스", color: "var(--text-secondary)" },
+            { label: "종목당 최대", value: "50만원", color: "var(--gold)" },
+            { label: "손절", value: "-5%", color: "var(--red)" },
+            { label: "익절", value: "+10% / 트레일링", color: "var(--green)" },
+            { label: "최대보유", value: "5종목", color: "var(--accent)" },
+            { label: "신호", value: "MA+RSI+MACD+거래량", color: "var(--text-secondary)" },
           ].map(({ label, value, color }) => (
             <span key={label} style={{ fontSize: 12, color: "var(--text-secondary)" }}>
               {label} <strong style={{ color }}>{value}</strong>

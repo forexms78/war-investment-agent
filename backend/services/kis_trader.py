@@ -72,6 +72,64 @@ def get_price_and_fundamentals(ticker: str) -> dict:
     }
 
 
+def get_daily_data(ticker: str, days: int = 40) -> list[dict]:
+    """일별 종가 + 거래량 리스트 (최신순) — KIS"""
+    end = datetime.now().strftime("%Y%m%d")
+    start = (datetime.now() - timedelta(days=days + 10)).strftime("%Y%m%d")
+    res = requests.get(
+        f"{BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-daily-price",
+        headers=_headers("FHKST01010400"),
+        params={
+            "fid_cond_mrkt_div_code": "J",
+            "fid_input_iscd": ticker,
+            "fid_org_adj_prc": "1",
+            "fid_period_div_code": "D",
+            "fid_input_date_1": start,
+            "fid_input_date_2": end,
+        },
+        timeout=10,
+    )
+    res.raise_for_status()
+    output = res.json().get("output", [])
+    result = []
+    for r in output:
+        close = r.get("stck_clpr")
+        vol = r.get("acml_vol")
+        if close and vol:
+            result.append({"close": float(close), "volume": float(vol)})
+    return result[:days]
+
+
+def get_account_cash() -> float:
+    """주문 가능 예수금"""
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    tr_id = "VTTC8434R" if IS_MOCK else "TTTC8434R"
+    res = requests.get(
+        f"{BASE_URL}/uapi/domestic-stock/v1/trading/inquire-balance",
+        headers=_headers(tr_id),
+        params={
+            "CANO": acc_no,
+            "ACNT_PRDT_CD": acc_suffix,
+            "AFHR_FLPR_YN": "N",
+            "OFL_YN": "",
+            "INQR_DVSN": "02",
+            "UNPR_DVSN": "01",
+            "FUND_STTL_ICLD_YN": "N",
+            "FNCG_AMT_AUTO_RDPT_YN": "N",
+            "PRCS_DVSN": "01",
+            "CTX_AREA_FK100": "",
+            "CTX_AREA_NK100": "",
+        },
+        timeout=10,
+    )
+    res.raise_for_status()
+    output2 = res.json().get("output2", [{}])
+    if output2:
+        v = output2[0].get("nxdy_excc_amt") or output2[0].get("dnca_tot_amt") or "0"
+        return float(v)
+    return 0.0
+
+
 def get_daily_prices(ticker: str, days: int = 30) -> list[float]:
     """일별 종가 리스트 (최신순) — KIS 주식 기간별 시세"""
     end = datetime.now().strftime("%Y%m%d")
