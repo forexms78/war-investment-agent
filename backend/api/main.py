@@ -59,6 +59,29 @@ def debug_env():
     }
 
 
+@app.get("/debug/kis")
+async def debug_kis():
+    """KIS 설정 확인 + 토큰 발급 테스트"""
+    import os
+    from backend.services.kis_trader import BASE_URL, IS_MOCK, APP_KEY, ACCOUNT_NO
+    result = {
+        "IS_MOCK": IS_MOCK,
+        "BASE_URL": BASE_URL,
+        "KIS_MOCK_env": os.getenv("KIS_MOCK", "(not set)"),
+        "APP_KEY_set": bool(APP_KEY),
+        "ACCOUNT_NO": ACCOUNT_NO,
+    }
+    try:
+        from backend.services.kis_trader import get_access_token
+        token = await _run(get_access_token)
+        result["token_ok"] = True
+        result["token_prefix"] = token[:20] + "..."
+    except Exception as e:
+        result["token_ok"] = False
+        result["token_error"] = str(e)
+    return result
+
+
 @app.get("/debug/gemini")
 async def debug_gemini():
     """Gemini 직접 호출 테스트 — 에러 메시지 노출"""
@@ -543,9 +566,12 @@ async def autotrade_watchlist():
 async def add_to_watchlist(body: dict):
     ticker = body.get("ticker", "").strip()
     name = body.get("name", ticker)
+    market = body.get("market", "KR").upper()
     if not ticker:
         return {"error": "ticker 필수"}
-    result = _sb().table("autotrade_watchlist").upsert({"ticker": ticker, "name": name}, on_conflict="ticker").execute()
+    result = _sb().table("autotrade_watchlist").upsert(
+        {"ticker": ticker, "name": name, "market": market}, on_conflict="ticker"
+    ).execute()
     return result.data[0] if result.data else {}
 
 @app.delete("/autotrade/watchlist/{ticker}")

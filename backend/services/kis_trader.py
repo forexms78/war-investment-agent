@@ -94,6 +94,30 @@ def get_daily_prices(ticker: str, days: int = 30) -> list[float]:
     return [float(r["stck_clpr"]) for r in output if r.get("stck_clpr")][:days]
 
 
+def get_us_price_and_fundamentals(ticker: str) -> dict:
+    """yfinance로 미국 주식 현재가 + PER/PBR/52주 고저"""
+    import yfinance as yf
+    t = yf.Ticker(ticker)
+    info = t.info
+    hist = t.history(period="2d")
+    cp = float(hist["Close"].iloc[-1]) if not hist.empty else None
+    return {
+        "current_price": cp,
+        "per": _safe_float(info.get("trailingPE") or info.get("forwardPE")),
+        "pbr": _safe_float(info.get("priceToBook")),
+        "w52_high": _safe_float(info.get("fiftyTwoWeekHigh")),
+        "w52_low": _safe_float(info.get("fiftyTwoWeekLow")),
+    }
+
+
+def get_us_daily_prices(ticker: str, days: int = 30) -> list[float]:
+    """yfinance로 미국 주식 일별 종가 리스트 (최신순)"""
+    import yfinance as yf
+    hist = yf.Ticker(ticker).history(period=f"{days + 10}d")
+    closes = hist["Close"].dropna().tolist()
+    return list(reversed(closes))[:days]
+
+
 def _safe_float(v) -> float | None:
     try:
         f = float(v)
