@@ -483,4 +483,9 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(send_telegram_morning, CronTrigger(hour=22, minute=0, timezone="UTC"), id="telegram_morning", max_instances=1)
     scheduler.add_job(send_telegram_lunch,   CronTrigger(hour=3,  minute=0, timezone="UTC"), id="telegram_lunch",   max_instances=1)
     scheduler.add_job(send_telegram_evening, CronTrigger(hour=9,  minute=0, timezone="UTC"), id="telegram_evening", max_instances=1)
+
+    # ── 퀀트 자동매매 — 장중(KST 9:00~15:30) 10분마다 시그널 스캔 ──
+    from backend.services.quant_scheduler import scan_and_trade
+    scheduler.add_job(scan_and_trade, "interval", minutes=10, id="quant_scan", max_instances=1)
+
     return scheduler
