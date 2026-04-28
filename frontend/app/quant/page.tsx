@@ -68,11 +68,40 @@ function QuantResearchJournal() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <nav className="border-b border-gray-800 px-6 py-3 flex items-center gap-6">
-        <Link href="/quant" className="text-blue-400 font-bold text-lg">Whalyx Quant</Link>
-        <span className="text-white text-sm border-b border-blue-400 pb-1">리서치 저널</span>
-        <Link href="/autotrade" className="text-gray-400 hover:text-white text-sm">자동매매</Link>
-        <Link href="/dashboard" className="text-gray-600 hover:text-gray-400 text-sm border-l border-gray-800 pl-6">레거시</Link>
+      <nav style={{
+        borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 100,
+        background: "var(--header-bg)", backdropFilter: "blur(16px)",
+      }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Link href="/dashboard" style={{
+              width: 30, height: 30, borderRadius: 8, background: "var(--accent)",
+              display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>W</span>
+            </Link>
+            <Link href="/dashboard" style={{ textDecoration: "none", color: "inherit" }}>
+              <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>Whalyx</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 6 }}>Quant</span>
+            </Link>
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[
+              { href: "/quant", label: "리서치 저널", active: true },
+              { href: "/autotrade", label: "자동매매", active: false },
+            ].map(({ href, label, active }) => (
+              <Link key={href} href={href} style={{
+                padding: "5px 14px", borderRadius: 8, fontSize: 13, fontWeight: active ? 600 : 400,
+                textDecoration: "none",
+                background: active ? "var(--accent-dim)" : "transparent",
+                border: active ? "1px solid var(--accent-glow)" : "1px solid transparent",
+                color: active ? "var(--accent)" : "var(--text-secondary)",
+              }}>
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </nav>
 
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
