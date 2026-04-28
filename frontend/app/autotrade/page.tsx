@@ -35,12 +35,15 @@ interface Trade {
 interface Signal {
   ticker: string;
   name: string;
+  market: string;
+  source: string;
   signal: string;
   current_price?: number;
   ma5?: number;
   ma20?: number;
   per?: number;
   reason?: string;
+  note?: string;
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL;
@@ -209,7 +212,9 @@ function AutoTradeContent() {
           }}>
             <div>
               <span style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 600 }}>유니버스 스캔</span>
-              <span style={{ color: "var(--text-muted)", fontSize: 12, marginLeft: 10 }}>KOSPI 대형주 20종목</span>
+              <span style={{ color: "var(--text-muted)", fontSize: 12, marginLeft: 10 }}>
+                KOSPI + NASDAQ/NYSE · 리서치 저널 포함 {signals.length}종목
+              </span>
             </div>
             <span style={{ color: "var(--text-muted)", fontSize: 11 }}>MA5 / MA20 · PER 필터</span>
           </div>
@@ -219,11 +224,12 @@ function AutoTradeContent() {
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   {[
                     { label: "종목", align: "left" },
+                    { label: "시장", align: "center" },
                     { label: "현재가", align: "right" },
                     { label: "MA5", align: "right" },
                     { label: "MA20", align: "right" },
                     { label: "PER", align: "right" },
-                    { label: "시그널", align: "center" },
+                    { label: "시그널 / 저널노트", align: "left" },
                   ].map(({ label, align }) => (
                     <th key={label} style={{
                       padding: "11px 20px", color: "var(--text-muted)", fontSize: 11,
@@ -238,51 +244,82 @@ function AutoTradeContent() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                    <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
                       불러오는 중...
                     </td>
                   </tr>
                 )}
                 {!loading && signals.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                    <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
                       KIS API 연결 확인 필요
                     </td>
                   </tr>
                 )}
-                {signals.map((s) => (
-                  <tr key={s.ticker} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "var(--card-hover)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <td style={{ padding: "13px 20px" }}>
-                      <p style={{ color: "var(--text-primary)", fontWeight: 600, margin: 0 }}>{s.name}</p>
-                      <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "2px 0 0" }}>{s.ticker}</p>
-                    </td>
-                    <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--text-primary)" }}>
-                      {s.current_price ? `${s.current_price.toLocaleString()}원` : "-"}
-                    </td>
-                    <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--accent)" }}>
-                      {s.ma5 ? s.ma5.toLocaleString() : "-"}
-                    </td>
-                    <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--purple)" }}>
-                      {s.ma20 ? s.ma20.toLocaleString() : "-"}
-                    </td>
-                    <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--gold)" }}>
-                      {s.per?.toFixed(1) ?? "-"}
-                    </td>
-                    <td style={{ padding: "13px 20px", textAlign: "center" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        <SignalBadge signal={s.signal} size="sm" />
-                        {s.reason && (
-                          <span style={{ color: "var(--text-muted)", fontSize: 10, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {s.reason}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {signals.map((s) => {
+                  const isUS = s.market === "US";
+                  const priceStr = s.current_price
+                    ? isUS ? `$${s.current_price.toFixed(2)}` : `${Math.round(s.current_price).toLocaleString()}원`
+                    : "-";
+                  const maFmt = (v?: number) => v == null ? "-" : isUS ? v.toFixed(2) : Math.round(v).toLocaleString();
+                  return (
+                    <tr key={s.ticker} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s" }}
+                      onMouseEnter={e => (e.currentTarget.style.background = "var(--card-hover)")}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <td style={{ padding: "13px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <p style={{ color: "var(--text-primary)", fontWeight: 600, margin: 0 }}>{s.name}</p>
+                          {s.source === "journal" && (
+                            <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: "var(--accent-dim)", color: "var(--accent)", border: "1px solid var(--accent-glow)", fontWeight: 700 }}>
+                              내종목
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "2px 0 0" }}>{s.ticker}</p>
+                      </td>
+                      <td style={{ padding: "13px 20px", textAlign: "center" }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                          background: isUS ? "rgba(99,102,241,0.15)" : "rgba(16,185,129,0.1)",
+                          color: isUS ? "#818cf8" : "var(--green)",
+                          border: `1px solid ${isUS ? "rgba(99,102,241,0.3)" : "rgba(16,185,129,0.2)"}`,
+                        }}>
+                          {isUS ? "🇺🇸 US" : "🇰🇷 KR"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--text-primary)" }}>
+                        {priceStr}
+                      </td>
+                      <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--accent)" }}>
+                        {maFmt(s.ma5)}
+                      </td>
+                      <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--purple)" }}>
+                        {maFmt(s.ma20)}
+                      </td>
+                      <td style={{ padding: "13px 20px", textAlign: "right", color: "var(--gold)" }}>
+                        {s.per?.toFixed(1) ?? "-"}
+                      </td>
+                      <td style={{ padding: "13px 20px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <SignalBadge signal={s.signal} size="sm" />
+                            {s.reason && (
+                              <span style={{ color: "var(--text-muted)", fontSize: 10, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {s.reason}
+                              </span>
+                            )}
+                          </div>
+                          {s.note && (
+                            <p style={{ color: "var(--text-muted)", fontSize: 10, margin: 0, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontStyle: "italic" }}>
+                              📝 {s.note}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -221,25 +221,61 @@ def scan_and_trade():
 
 
 def get_universe_signals() -> list[dict]:
-    """자동매매 대시보드용 — 유니버스 전체 시그널 스냅샷"""
+    """자동매매 대시보드용 — 시스템 유니버스 + 리서치 저널 종목 통합 시그널 스냅샷"""
     _ensure_universe()
-    universe = _sb().table("autotrade_watchlist").select("ticker, name, market").execute().data or []
+
+    # 시스템 유니버스
+    system_stocks = _sb().table("autotrade_watchlist").select("ticker, name, market").execute().data or []
+    seen = {s["ticker"] for s in system_stocks}
+    universe = [{"source": "system", **s} for s in system_stocks]
+
+    # 리서치 저널 종목 추가 (중복 제외)
+    journal_stocks = _sb().table("quant_stocks").select("ticker, name, market").execute().data or []
+    for s in journal_stocks:
+        if s["ticker"] not in seen:
+            universe.append({"source": "journal", **s})
+            seen.add(s["ticker"])
+
+    # 최근 저널 노트 맵 {ticker: latest_analysis_text}
+    note_map: dict[str, str] = {}
+    try:
+        all_stocks = _sb().table("quant_stocks").select("id, ticker").execute().data or []
+        for s in all_stocks:
+            latest = (
+                _sb().table("journal_entries")
+                .select("analysis_text, signal, action, created_at")
+                .eq("stock_id", s["id"])
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+                .data or []
+            )
+            if latest:
+                note_map[s["ticker"]] = latest[0].get("analysis_text", "")[:80]
+    except Exception:
+        pass
+
     results = []
     for stock in universe:
-        market = stock.get("market", "KR")
+        market = stock.get("market", "KR") or "KR"
         try:
             sig = _calc_signal(stock["ticker"], market)
             results.append({
                 "ticker": stock["ticker"],
                 "name": stock["name"],
                 "market": market,
+                "source": stock["source"],
+                "note": note_map.get(stock["ticker"], ""),
                 **sig,
             })
-        except Exception:
+        except Exception as e:
             results.append({
                 "ticker": stock["ticker"],
                 "name": stock["name"],
                 "market": market,
+                "source": stock["source"],
+                "note": note_map.get(stock["ticker"], ""),
                 "signal": "hold",
+                "reason": str(e),
             })
     return results
