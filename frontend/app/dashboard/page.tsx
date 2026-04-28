@@ -15,10 +15,11 @@ import WhaleSignalSection from "@/components/WhaleSignalSection";
 import MarketsSection from "@/components/MarketsSection";
 import NewsAISection from "@/components/NewsAISection";
 import Tooltip from "@/components/Tooltip";
+import QuantTab from "@/components/quant/QuantTab";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "signal" | "markets" | "news";
+type Tab = "signal" | "markets" | "news" | "quant";
 type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds";
 
 const WHALE_TO_MARKET: Record<string, MarketTab> = {
@@ -155,6 +156,7 @@ export default function Home() {
     { id: "signal",  label: "Whale Signal" },
     { id: "markets", label: "마켓"         },
     { id: "news",    label: "AI 뉴스"      },
+    { id: "quant",   label: "Quant"        },
   ];
 
   const FED_TOOLTIP = `EFFR(실효연방기금금리)와 목표 금리의 차이
@@ -226,14 +228,6 @@ EFFR은 은행들이 실제로 하루짜리 초단기 자금을 빌릴 때 적�
           </nav>
 
           <div className="header-right" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <Link href="/quant" style={{
-              fontSize: 11, color: "#60a5fa", textDecoration: "none",
-              border: "1px solid rgba(96,165,250,0.4)", borderRadius: 6,
-              padding: "4px 10px", fontWeight: 700, letterSpacing: "0.02em",
-              background: "rgba(96,165,250,0.08)",
-            }}>
-              Quant 접속 →
-            </Link>
             <span style={{ fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.04em" }}>
               13F Filing · Live Markets · AI Insight
             </span>
@@ -415,6 +409,11 @@ EFFR은 은행들이 실제로 하루짜리 초단기 자금을 빌릴 때 적�
         {activeTab === "news" && (
           <div className="fade-in">
             <NewsAISection />
+          </div>
+        )}
+        {activeTab === "quant" && (
+          <div className="fade-in">
+            <QuantTab />
           </div>
         )}
       </main>

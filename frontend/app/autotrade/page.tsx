@@ -86,7 +86,7 @@ function AutoTradeContent() {
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-5xl mx-auto px-8 py-10 space-y-10">
         <div>
           <h1 className="text-2xl font-bold mb-1">자동매매 대시보드</h1>
           <p className="text-gray-500 text-sm">
@@ -94,7 +94,7 @@ function AutoTradeContent() {
           </p>
         </div>
 
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-6">
           {[
             {
               label: "시스템",
@@ -115,18 +115,19 @@ function AutoTradeContent() {
               color: pnlColor,
             },
           ].map(({ label, value, color }) => (
-            <div key={label} className="bg-gray-900 rounded-xl p-4 text-center">
-              <p className="text-gray-500 text-xs mb-1">{label}</p>
-              <p className={`font-bold text-base ${color}`}>{value}</p>
+            <div key={label} className="bg-gray-900 rounded-xl p-6 text-center">
+              <p className="text-gray-500 text-xs mb-2">{label}</p>
+              <p className={`font-bold text-xl ${color}`}>{value}</p>
             </div>
           ))}
         </div>
 
-        <div className="bg-gray-900 rounded-xl p-3 flex gap-6 text-sm">
-          <span className="text-gray-400">리스크 설정</span>
+        <div className="bg-gray-900 rounded-xl px-6 py-4 flex gap-8 text-sm items-center">
+          <span className="text-gray-400 font-medium">리스크 설정</span>
           <span className="text-gray-200">종목당 최대 <strong className="text-yellow-400">50만원</strong></span>
           <span className="text-gray-200">손절선 <strong className="text-red-400">-8%</strong> 자동 매도</span>
-          <span className={`ml-auto font-bold px-3 py-0.5 rounded text-xs border ${
+          <span className="text-gray-200">PER 필터 <strong className="text-blue-400">&lt; 20</strong></span>
+          <span className={`ml-auto font-bold px-4 py-1 rounded text-xs border ${
             status?.system_on
               ? "border-green-500 text-green-400 bg-green-500/10"
               : "border-gray-600 text-gray-400"
@@ -136,41 +137,41 @@ function AutoTradeContent() {
         </div>
 
         <div className="bg-gray-900 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
             <span className="text-sm text-gray-400">유니버스 스캔 (KOSPI 대형주 20종목)</span>
             <span className="text-xs text-gray-600">MA{5}/MA{20} 골든크로스 · PER 필터</span>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-600 text-xs border-b border-gray-800">
-                <th className="text-left px-4 py-2">종목</th>
-                <th className="px-4 py-2">현재가</th>
-                <th className="px-4 py-2">MA5</th>
-                <th className="px-4 py-2">MA20</th>
-                <th className="px-4 py-2">PER</th>
-                <th className="px-4 py-2">시그널</th>
+                <th className="text-left px-6 py-3">종목</th>
+                <th className="px-6 py-3">현재가</th>
+                <th className="px-6 py-3">MA5</th>
+                <th className="px-6 py-3">MA20</th>
+                <th className="px-6 py-3">PER</th>
+                <th className="px-6 py-3">시그널</th>
               </tr>
             </thead>
             <tbody>
               {signals.map((s) => (
                 <tr key={s.ticker} className="border-b border-gray-800 hover:bg-gray-800">
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4">
                     <p className="text-white font-medium">{s.name || s.ticker}</p>
                     <p className="text-gray-500 text-xs">{s.ticker}</p>
                   </td>
-                  <td className="px-4 py-3 text-center text-white">
+                  <td className="px-6 py-4 text-center text-white">
                     {s.current_price ? `${s.current_price.toLocaleString()}원` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-center text-blue-400">
+                  <td className="px-6 py-4 text-center text-blue-400">
                     {s.ma5 ? s.ma5.toLocaleString() : "-"}
                   </td>
-                  <td className="px-4 py-3 text-center text-purple-400">
+                  <td className="px-6 py-4 text-center text-purple-400">
                     {s.ma20 ? s.ma20.toLocaleString() : "-"}
                   </td>
-                  <td className="px-4 py-3 text-center text-yellow-400">
+                  <td className="px-6 py-4 text-center text-yellow-400">
                     {s.per?.toFixed(1) ?? "-"}
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-6 py-4 text-center">
                     <div className="flex flex-col items-center gap-1">
                       <SignalBadge signal={s.signal} size="sm" />
                       {s.reason && <span className="text-gray-600 text-xs max-w-[120px] truncate">{s.reason}</span>}
