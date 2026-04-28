@@ -233,6 +233,153 @@ def get_us_daily_prices(ticker: str, days: int = 30) -> list[float]:
         return []
 
 
+EXCHANGE_MAP: dict[str, str] = {
+    "AAPL": "NASD", "MSFT": "NASD", "NVDA": "NASD", "GOOGL": "NASD",
+    "AMZN": "NASD", "META": "NASD", "TSLA": "NASD", "AVGO": "NASD",
+    "LLY":  "NYSE", "JPM":  "NYSE", "V":    "NYSE", "BRK-B": "NYSE",
+}
+
+
+def get_ticker_exchange(ticker: str) -> str:
+    return EXCHANGE_MAP.get(ticker, "NASD")
+
+
+def get_us_current_price(ticker: str) -> float:
+    import yfinance as yf
+    t = yf.Ticker(ticker)
+    try:
+        return float(t.fast_info.last_price)
+    except Exception:
+        hist = t.history(period="2d")
+        if hist.empty:
+            raise ValueError(f"{ticker} 가격 조회 실패")
+        return float(hist["Close"].iloc[-1])
+
+
+def get_us_account_cash_usd() -> float:
+    """해외주식 주문 가능 달러 잔고"""
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    tr_id = "VTRP6504R" if IS_MOCK else "CTRP6504R"
+    res = requests.get(
+        f"{BASE_URL}/uapi/overseas-stock/v1/trading/inquire-present-balance",
+        headers=_headers(tr_id),
+        params={
+            "CANO":              acc_no,
+            "ACNT_PRDT_CD":      acc_suffix,
+            "WCRC_FRCR_DVSN_CD": "02",
+            "NATN_CD":           "840",
+            "TR_MKET_CD":        "00",
+            "INQR_DVSN_CD":      "00",
+        },
+        timeout=10,
+    )
+    res.raise_for_status()
+    output2 = res.json().get("output2", [{}])
+    if output2:
+        v = (
+            output2[0].get("frcr_drwg_psbl_amt_1")
+            or output2[0].get("frcr_evlu_amt2")
+            or "0"
+        )
+        return float(v)
+    return 0.0
+
+
+def get_us_holdings() -> list:
+    """해외주식 보유 종목 (NASD + NYSE)"""
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    tr_id = "VTTS3012R" if IS_MOCK else "TTTS3012R"
+    all_holdings: list[dict] = []
+    seen: set[str] = set()
+    for exchange in ("NASD", "NYSE"):
+        try:
+            res = requests.get(
+                f"{BASE_URL}/uapi/overseas-stock/v1/trading/inquire-balance",
+                headers=_headers(tr_id),
+                params={
+                    "CANO":           acc_no,
+                    "ACNT_PRDT_CD":   acc_suffix,
+                    "OVRS_EXCG_CD":   exchange,
+                    "TR_CRCY_CD":     "USD",
+                    "CTX_AREA_FK200": "",
+                    "CTX_AREA_NK200": "",
+                },
+                timeout=10,
+            )
+            res.raise_for_status()
+            for h in res.json().get("output1", []):
+                qty    = int(h.get("ovrs_cblc_qty", 0))
+                ticker = h.get("ovrs_pdno", "")
+                if qty > 0 and ticker and ticker not in seen:
+                    all_holdings.append({
+                        "ticker":        ticker,
+                        "name":          h.get("ovrs_item_name", ""),
+                        "quantity":      qty,
+                        "avg_price":     float(h.get("pchs_avg_pric", 0)),
+                        "current_price": float(h.get("now_pric2", 0)),
+                        "pnl_pct":       float(h.get("evlu_pfls_rt", 0)),
+                        "exchange":      exchange,
+                    })
+                    seen.add(ticker)
+        except Exception:
+            pass
+    return all_holdings
+
+
+def buy_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict:
+    if quantity <= 0:
+        return {"error": "수량이 0이하"}
+    if not exchange:
+        exchange = get_ticker_exchange(ticker)
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    tr_id = "VTTS0308U" if IS_MOCK else "TTTS0308U"
+    price = get_us_current_price(ticker)
+    limit_price = f"{price * 1.005:.2f}"
+    res = requests.post(
+        f"{BASE_URL}/uapi/overseas-stock/v1/trading/order",
+        headers=_headers(tr_id),
+        json={
+            "CANO":          acc_no,
+            "ACNT_PRDT_CD":  acc_suffix,
+            "OVRS_EXCG_CD":  exchange,
+            "PDNO":          ticker,
+            "ORD_DVSN":      "00",
+            "ORD_QTY":       str(quantity),
+            "OVRS_ORD_UNPR": limit_price,
+        },
+        timeout=10,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
+def sell_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict:
+    if quantity <= 0:
+        return {"error": "수량이 0이하"}
+    if not exchange:
+        exchange = get_ticker_exchange(ticker)
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    tr_id = "VTTS0307U" if IS_MOCK else "TTTS0307U"
+    price = get_us_current_price(ticker)
+    limit_price = f"{price * 0.995:.2f}"
+    res = requests.post(
+        f"{BASE_URL}/uapi/overseas-stock/v1/trading/order",
+        headers=_headers(tr_id),
+        json={
+            "CANO":          acc_no,
+            "ACNT_PRDT_CD":  acc_suffix,
+            "OVRS_EXCG_CD":  exchange,
+            "PDNO":          ticker,
+            "ORD_DVSN":      "00",
+            "ORD_QTY":       str(quantity),
+            "OVRS_ORD_UNPR": limit_price,
+        },
+        timeout=10,
+    )
+    res.raise_for_status()
+    return res.json()
+
+
 def _safe_float(v) -> float | None:
     try:
         f = float(v)
