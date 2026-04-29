@@ -23,6 +23,9 @@
 """
 import json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+_KST = ZoneInfo("Asia/Seoul")
 
 from backend.services.db_cache import _get_client as _sb
 from backend.services.kis_trader import (
@@ -253,7 +256,7 @@ def _sector_ok(ticker: str, held: set[str]) -> bool:
 
 
 def _daily_loss_exceeded() -> bool:
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(_KST).strftime("%Y-%m-%d")
     trades = _sb().table("auto_trades").select("action, amount").gte("executed_at", today).execute().data or []
     total_buy  = sum(t["amount"] for t in trades if t["action"] == "buy")
     total_sell = sum(t["amount"] for t in trades if t["action"] == "sell")
@@ -263,7 +266,7 @@ def _daily_loss_exceeded() -> bool:
 
 
 def _order_duplicate(ticker: str, action: str) -> bool:
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now(_KST).strftime("%Y-%m-%d")
     r = _sb().table("auto_trades").select("id").eq("ticker", ticker).eq("action", action).gte("executed_at", today).execute()
     return bool(r.data)
 
@@ -408,14 +411,14 @@ def _record_trade(
 # ── 시간 체크 ─────────────────────────────────────────
 
 def _is_kr_trading_hours() -> bool:
-    now = datetime.now()
+    now = datetime.now(_KST)
     if now.weekday() >= 5:
         return False
     return (9, 0) <= (now.hour, now.minute) <= (15, 30)
 
 
 def _is_us_trading_hours() -> bool:
-    now = datetime.now()
+    now = datetime.now(_KST)
     if now.weekday() == 6:  # 일요일 → 미장 없음
         return False
     h, m = now.hour, now.minute
@@ -427,11 +430,12 @@ def _is_trading_hours() -> bool:
 
 
 def _is_kr_force_close_time() -> bool:
-    h, m = datetime.now().hour, datetime.now().minute
-    return (h, m) >= FORCE_CLOSE_HOUR
+    now = datetime.now(_KST)
+    return (now.hour, now.minute) >= FORCE_CLOSE_HOUR
 
 def _is_us_force_close_time() -> bool:
-    h, m = datetime.now().hour, datetime.now().minute
+    now = datetime.now(_KST)
+    h, m = now.hour, now.minute
     return (h, m) >= US_FORCE_CLOSE_HOUR and (h, m) <= (7, 0)
 
 

@@ -1,5 +1,8 @@
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+_KST = ZoneInfo("Asia/Seoul")
 
 import requests
 
@@ -17,7 +20,7 @@ _token_cache: dict = {"token": None, "expires_at": None}
 
 
 def get_access_token() -> str:
-    now = datetime.now()
+    now = datetime.now(_KST)
     if _token_cache["token"] and _token_cache["expires_at"] and now < _token_cache["expires_at"]:
         return _token_cache["token"]
     res = requests.post(
@@ -74,7 +77,7 @@ def get_price_and_fundamentals(ticker: str) -> dict:
 
 def get_daily_data(ticker: str, days: int = 40) -> list[dict]:
     """일별 종가 + 거래량 리스트 (최신순) — KIS"""
-    end = datetime.now().strftime("%Y%m%d")
+    end = datetime.now(_KST).strftime("%Y%m%d")
     start = (datetime.now() - timedelta(days=days + 10)).strftime("%Y%m%d")
     res = requests.get(
         f"{BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-daily-price",
@@ -132,7 +135,7 @@ def get_account_cash() -> float:
 
 def get_daily_prices(ticker: str, days: int = 30) -> list[float]:
     """일별 종가 리스트 (최신순) — KIS 주식 기간별 시세"""
-    end = datetime.now().strftime("%Y%m%d")
+    end = datetime.now(_KST).strftime("%Y%m%d")
     start = (datetime.now() - timedelta(days=days + 10)).strftime("%Y%m%d")
     res = requests.get(
         f"{BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-daily-price",
