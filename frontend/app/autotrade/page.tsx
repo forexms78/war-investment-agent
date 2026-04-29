@@ -210,6 +210,87 @@ function AutoTradeContent() {
     },
   ];
 
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-primary)", fontFamily: "inherit" }}>
+        <header style={{
+          borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 100,
+          background: "var(--header-bg)", backdropFilter: "blur(16px)",
+        }}>
+          <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>W</span>
+              </div>
+              <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>Whalyx</span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 6 }}>Quant</span>
+            </div>
+          </div>
+        </header>
+
+        {/* 진행 바 */}
+        <div style={{ position: "fixed", top: 56, left: 0, right: 0, height: 2, zIndex: 200, overflow: "hidden", background: "var(--border)" }}>
+          <div style={{
+            height: "100%", background: "var(--accent)",
+            animation: "loadingBar 1.8s ease-in-out infinite",
+            transformOrigin: "left",
+          }} />
+        </div>
+        <style>{`
+          @keyframes loadingBar {
+            0%   { transform: translateX(-100%) scaleX(0.3); }
+            50%  { transform: translateX(30%)   scaleX(0.6); }
+            100% { transform: translateX(100%)  scaleX(0.3); }
+          }
+          @keyframes shimmer {
+            0%   { background-position: -400px 0; }
+            100% { background-position: 400px 0; }
+          }
+        `}</style>
+
+        <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: 24 }}>
+          <div>
+            <div style={{ width: 200, height: 24, borderRadius: 6, background: "var(--card)", animation: "shimmer 1.4s infinite linear", backgroundImage: "linear-gradient(90deg, var(--card) 0%, var(--card-hover) 50%, var(--card) 100%)", backgroundSize: "800px 100%" }} />
+            <div style={{ width: 360, height: 14, borderRadius: 4, background: "var(--card)", marginTop: 8, animation: "shimmer 1.4s infinite linear", backgroundImage: "linear-gradient(90deg, var(--card) 0%, var(--card-hover) 50%, var(--card) 100%)", backgroundSize: "800px 100%" }} />
+          </div>
+
+          {/* 스켈레톤 상태 카드 */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+            {[0,1,2,3].map(i => (
+              <div key={i} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px" }}>
+                <div style={{ width: 80, height: 11, borderRadius: 4, marginBottom: 14, background: "var(--card-hover)", animation: "shimmer 1.4s infinite linear", backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)", backgroundSize: "800px 100%" }} />
+                <div style={{ width: 60, height: 22, borderRadius: 5, background: "var(--card-hover)", animation: "shimmer 1.4s infinite linear", backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)", backgroundSize: "800px 100%" }} />
+              </div>
+            ))}
+          </div>
+
+          {/* 스켈레톤 테이블 */}
+          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 100, height: 14, borderRadius: 4, background: "var(--card-hover)" }} />
+              <div style={{ width: 160, height: 12, borderRadius: 4, background: "var(--card-hover)" }} />
+            </div>
+            {[...Array(8)].map((_, i) => (
+              <div key={i} style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", gap: 16, alignItems: "center" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ width: `${80 + Math.random() * 60}px`, height: 13, borderRadius: 4, background: "var(--card-hover)", marginBottom: 6, animation: `shimmer ${1.2 + i * 0.1}s infinite linear`, backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)", backgroundSize: "800px 100%" }} />
+                  <div style={{ width: 60, height: 10, borderRadius: 3, background: "var(--card-hover)" }} />
+                </div>
+                {[50, 70, 70, 40, 80].map((w, j) => (
+                  <div key={j} style={{ width: w, height: 12, borderRadius: 3, background: "var(--card-hover)", animation: `shimmer ${1.3 + j * 0.1}s infinite linear`, backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)", backgroundSize: "800px 100%" }} />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ textAlign: "center", padding: "8px 0", color: "var(--text-muted)", fontSize: 12 }}>
+            KIS API에서 종목 데이터 수신 중 · 25개 종목 순차 조회 (약 30~60초 소요)
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-primary)", fontFamily: "inherit" }}>
 
@@ -472,14 +553,7 @@ function AutoTradeContent() {
                 </tr>
               </thead>
               <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-                      불러오는 중...
-                    </td>
-                  </tr>
-                )}
-                {!loading && signals.length === 0 && (
+                {signals.length === 0 && (
                   <tr>
                     <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
                       KIS API 연결 확인 필요
