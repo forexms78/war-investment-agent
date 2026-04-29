@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import SignalBadge from "@/components/quant/SignalBadge";
 import PasswordGate from "@/components/quant/PasswordGate";
+import WatchlistManager from "@/components/autotrade/WatchlistManager";
 
 interface Status {
   system_on: boolean;
@@ -347,6 +348,9 @@ function AutoTradeContent() {
             </span>
           </span>
         </div>
+
+        {/* 워치리스트 관리 */}
+        <WatchlistManager apiUrl={API ?? ""} />
 
         {/* 탭 */}
         <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
