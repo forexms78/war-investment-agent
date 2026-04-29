@@ -19,6 +19,19 @@ async def lifespan(app: FastAPI):
     scheduler = create_scheduler()
     scheduler.start()
     asyncio.create_task(warm_all_caches())
+
+    # DART corp_code 테이블 초기화 (비어있을 때만 백그라운드 실행)
+    try:
+        from backend.services.db_cache import _get_client as _sb_init
+        from backend.services.dart_service import build_corp_code_table
+        count = _sb_init().table("dart_corp_codes").select("ticker", count="exact").limit(1).execute()
+        if not count.data:
+            import threading
+            threading.Thread(target=build_corp_code_table, daemon=True).start()
+            print("[startup] DART corp_code 테이블 백그라운드 빌드 시작")
+    except Exception as _e:
+        print(f"[startup] DART 초기화 스킵: {_e}")
+
     yield
     scheduler.shutdown(wait=False)
 
