@@ -537,24 +537,38 @@ from datetime import datetime as _dt
 
 @app.get("/autotrade/status")
 async def autotrade_status():
+    from zoneinfo import ZoneInfo
+    today_kst = _dt.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
+
+    # 체결 이력은 DB에서 독립 조회 (KIS API 실패와 무관)
+    try:
+        trades_today = _sb().table("auto_trades")\
+            .select("*")\
+            .gte("executed_at", today_kst)\
+            .execute().data or []
+    except Exception:
+        trades_today = []
+
+    # 보유 종목 조회 — 실패해도 system_on은 True (스케줄러는 별도 프로세스)
+    holdings = []
+    holdings_error = None
     try:
         from backend.services.kis_trader import get_holdings as kis_holdings
         holdings = await _run(kis_holdings)
-        trades_today = _sb().table("auto_trades")\
-            .select("*")\
-            .gte("executed_at", _dt.now().strftime("%Y-%m-%d"))\
-            .execute().data or []
-        total_invested = sum(h["current_price"] * h["quantity"] for h in holdings)
-        total_pnl = sum((h["current_price"] - h["avg_price"]) * h["quantity"] for h in holdings)
-        return {
-            "system_on": True,
-            "trades_today": len(trades_today),
-            "total_invested": round(total_invested),
-            "total_pnl_pct": round(total_pnl / total_invested * 100, 2) if total_invested else 0,
-            "holdings": holdings,
-        }
     except Exception as e:
-        return {"system_on": False, "error": str(e), "trades_today": 0, "total_invested": 0, "total_pnl_pct": 0, "holdings": []}
+        holdings_error = str(e)
+        print(f"[status] 보유종목 조회 실패: {e}")
+
+    total_invested = sum(h["current_price"] * h["quantity"] for h in holdings)
+    total_pnl = sum((h["current_price"] - h["avg_price"]) * h["quantity"] for h in holdings)
+    return {
+        "system_on": True,
+        "trades_today": len(trades_today),
+        "total_invested": round(total_invested),
+        "total_pnl_pct": round(total_pnl / total_invested * 100, 2) if total_invested else 0,
+        "holdings": holdings,
+        **({"holdings_error": holdings_error} if holdings_error else {}),
+    }
 
 @app.get("/autotrade/trades")
 async def autotrade_trades():

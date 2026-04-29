@@ -9,6 +9,8 @@ import requests
 APP_KEY = os.getenv("KIS_APP_KEY", "")
 APP_SECRET = os.getenv("KIS_APP_SECRET", "")
 ACCOUNT_NO = os.getenv("KIS_ACCOUNT_NO", "")
+# ISA 계좌는 상품코드가 01이 아님 (예: 26·60). KIS_ACCOUNT_SUFFIX로 명시적으로 지정 가능
+ACCOUNT_SUFFIX = os.getenv("KIS_ACCOUNT_SUFFIX", "")
 IS_MOCK = os.getenv("KIS_MOCK", "true").lower() == "true"
 
 BASE_URL = (
@@ -105,7 +107,7 @@ def get_daily_data(ticker: str, days: int = 40) -> list[dict]:
 
 def get_account_cash() -> float:
     """주문 가능 예수금"""
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTC8434R" if IS_MOCK else "TTTC8434R"
     res = requests.get(
         f"{BASE_URL}/uapi/domestic-stock/v1/trading/inquire-balance",
@@ -261,7 +263,7 @@ def get_us_current_price(ticker: str) -> float:
 
 def get_us_account_cash_usd() -> float:
     """해외주식 주문 가능 달러 잔고"""
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTRP6504R" if IS_MOCK else "CTRP6504R"
     res = requests.get(
         f"{BASE_URL}/uapi/overseas-stock/v1/trading/inquire-present-balance",
@@ -290,7 +292,7 @@ def get_us_account_cash_usd() -> float:
 
 def get_us_holdings() -> list:
     """해외주식 보유 종목 (NASD + NYSE)"""
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTS3012R" if IS_MOCK else "TTTS3012R"
     all_holdings: list[dict] = []
     seen: set[str] = set()
@@ -334,7 +336,7 @@ def buy_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict:
         return {"error": "수량이 0이하"}
     if not exchange:
         exchange = get_ticker_exchange(ticker)
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTS0308U" if IS_MOCK else "TTTS0308U"
     price = get_us_current_price(ticker)
     limit_price = f"{price * 1.005:.2f}"
@@ -361,7 +363,7 @@ def sell_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict
         return {"error": "수량이 0이하"}
     if not exchange:
         exchange = get_ticker_exchange(ticker)
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTS0307U" if IS_MOCK else "TTTS0307U"
     price = get_us_current_price(ticker)
     limit_price = f"{price * 0.995:.2f}"
@@ -400,7 +402,7 @@ def calculate_quantity(max_amount: int, price: float) -> int:
 def buy_market_order(ticker: str, quantity: int) -> dict:
     if quantity <= 0:
         return {"error": "수량이 0이하"}
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTC0802U" if IS_MOCK else "TTTC0802U"
     res = requests.post(
         f"{BASE_URL}/uapi/domestic-stock/v1/trading/order-cash",
@@ -422,7 +424,7 @@ def buy_market_order(ticker: str, quantity: int) -> dict:
 def sell_market_order(ticker: str, quantity: int) -> dict:
     if quantity <= 0:
         return {"error": "수량이 0이하"}
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTC0801U" if IS_MOCK else "TTTC0801U"
     res = requests.post(
         f"{BASE_URL}/uapi/domestic-stock/v1/trading/order-cash",
@@ -442,7 +444,7 @@ def sell_market_order(ticker: str, quantity: int) -> dict:
 
 
 def get_holdings() -> list:
-    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + ["01"])[:2]
+    acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
     tr_id = "VTTC8434R" if IS_MOCK else "TTTC8434R"
     res = requests.get(
         f"{BASE_URL}/uapi/domestic-stock/v1/trading/inquire-balance",
