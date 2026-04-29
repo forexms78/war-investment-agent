@@ -69,9 +69,33 @@ MAX_POSITIONS        = 5              # 최대 동시 보유 종목
 MAX_SECTOR_POSITIONS = 2              # 동일 섹터 최대
 KOSPI_HALT_PCT       = -1.5           # 코스피 하락 시 신규 진입 중단
 DAILY_LOSS_LIMIT_PCT = -3.0           # 일일 손실 한도
-VOLUME_MULT          = 1.5            # 거래량 배수
-RSI_MIN, RSI_MAX     = 40, 60         # RSI 진입 범위
-PER_MIN, PER_MAX     = 5.0, 30.0      # PER 범위
+VOLUME_MULT          = 1.5            # 거래량 배수 (sideways 기본값)
+RSI_MIN, RSI_MAX     = 40, 60         # RSI 진입 범위 (sideways 기본값)
+PER_MIN, PER_MAX     = 5.0, 30.0      # PER 범위 (sideways 기본값)
+
+REGIME_PARAMS: dict[str, dict] = {
+    "bull": {
+        "RSI_MIN":        40,
+        "RSI_MAX":        80,
+        "PER_MAX":        45,
+        "VOLUME_MULT":    1.2,
+        "KOSPI_HALT_PCT": -2.5,
+    },
+    "sideways": {
+        "RSI_MIN":        40,
+        "RSI_MAX":        65,
+        "PER_MAX":        30,
+        "VOLUME_MULT":    1.5,
+        "KOSPI_HALT_PCT": -1.5,
+    },
+    "bear": {
+        "RSI_MIN":        35,
+        "RSI_MAX":        55,
+        "PER_MAX":        20,
+        "VOLUME_MULT":    2.0,
+        "KOSPI_HALT_PCT": -1.0,
+    },
+}
 MA_SHORT, MA_LONG    = 5, 20
 MA_TREND             = 60             # 장기 추세 확인용 MA (MTF 대체)
 VKOSPI_HALVE         = 25.0           # VKOSPI 이상 시 포지션 절반
@@ -179,12 +203,12 @@ def _macd_bullish(closes: list[float]) -> bool | None:
     return ema12 > ema26
 
 
-def _volume_ok(volumes: list[float]) -> bool | None:
-    """최신 거래량 ≥ 직전 5봉 평균 × 1.5"""
+def _volume_ok(volumes: list[float], volume_mult: float = VOLUME_MULT) -> bool | None:
+    """최신 거래량 ≥ 직전 5봉 평균 × volume_mult"""
     if len(volumes) < 6:
         return None
     avg5 = sum(volumes[1:6]) / 5
-    return avg5 > 0 and volumes[0] >= avg5 * VOLUME_MULT
+    return avg5 > 0 and volumes[0] >= avg5 * volume_mult
 
 
 def _mtf_ok(closes: list[float]) -> bool | None:
@@ -212,9 +236,9 @@ def _kospi_change_pct() -> float | None:
         return None
 
 
-def _market_halted() -> bool:
+def _market_halted(halt_pct: float = KOSPI_HALT_PCT) -> bool:
     chg = _kospi_change_pct()
-    return chg is not None and chg <= KOSPI_HALT_PCT
+    return chg is not None and chg <= halt_pct
 
 
 def _vkospi_position_multiplier() -> float:
@@ -306,7 +330,13 @@ def _order_duplicate(ticker: str, action: str) -> bool:
 
 # ── 신호 계산 ─────────────────────────────────────────
 
-def _calc_signal(ticker: str, market: str = "KR") -> dict:
+def _calc_signal(ticker: str, market: str = "KR", regime: str = "sideways") -> dict:
+    p          = REGIME_PARAMS.get(regime, REGIME_PARAMS["sideways"])
+    rsi_min    = p["RSI_MIN"]
+    rsi_max    = p["RSI_MAX"]
+    per_max    = p["PER_MAX"]
+    vol_mult   = p["VOLUME_MULT"]
+
     try:
         if market == "US":
             import yfinance as yf
@@ -343,11 +373,10 @@ def _calc_signal(ticker: str, market: str = "KR") -> dict:
 
     rsi     = _rsi(closes)
     macd_ok = _macd_bullish(closes)
-    vol_ok  = _volume_ok(volumes)
-    mtf_ok  = _mtf_ok(closes)         # MA20 > MA60 (추세 방향 확인)
-    per_ok  = per is None or (PER_MIN <= per <= PER_MAX)
-
-    rsi_ok = rsi is None or (RSI_MIN <= rsi <= RSI_MAX)
+    vol_ok  = _volume_ok(volumes, vol_mult)
+    mtf_ok  = _mtf_ok(closes)
+    per_ok  = per is None or (PER_MIN <= per <= per_max)
+    rsi_ok  = rsi is None or (rsi_min <= rsi <= rsi_max)
 
     all_filters_ok = (
         rsi_ok and
@@ -359,19 +388,19 @@ def _calc_signal(ticker: str, market: str = "KR") -> dict:
 
     if golden_cross and all_filters_ok:
         signal = "buy"
-        reason = f"골든크로스 RSI={rsi} 거래량OK MTF={'OK' if mtf_ok else '?'} PER={per}"
+        reason = f"[{regime}] 골든크로스 RSI={rsi} 거래량OK MTF={'OK' if mtf_ok else '?'} PER={per}"
     elif dead_cross:
         signal = "sell"
         reason = f"데드크로스 (MA{MA_SHORT}<MA{MA_LONG})"
     elif golden_cross:
         fails = []
-        if not rsi_ok:         fails.append(f"RSI={rsi}(범위외)")
+        if not rsi_ok:         fails.append(f"RSI={rsi}(범위 {rsi_min}~{rsi_max})")
         if macd_ok is False:   fails.append("MACD하락")
         if vol_ok  is False:   fails.append("거래량부족")
         if mtf_ok  is False:   fails.append("MTF하락추세")
-        if not per_ok:         fails.append(f"PER={per}(범위외)")
+        if not per_ok:         fails.append(f"PER={per}(상한 {per_max})")
         signal = "hold"
-        reason = f"크로스+필터미통과: {', '.join(fails)}"
+        reason = f"[{regime}] 크로스+필터미통과: {', '.join(fails)}"
     else:
         signal = "hold"
         reason = f"MA{MA_SHORT}={ma5_now:.2f} MA{MA_LONG}={ma20_now:.2f}"
@@ -474,7 +503,7 @@ def _is_us_force_close_time() -> bool:
 
 # ── 메인 스캔 & 트레이딩 ──────────────────────────────
 
-def _check_and_sell(h: dict, market: str):
+def _check_and_sell(h: dict, market: str, regime: str = "sideways"):
     """보유 종목 청산 조건 체크 & 실행. 성공 시 True 반환."""
     if h["pnl_pct"] >= TRAILING_TRIGGER_PCT:
         _trailing_activated.add(h["ticker"])
@@ -489,7 +518,7 @@ def _check_and_sell(h: dict, market: str):
         sell_reason = f"손절 ({h['pnl_pct']:.1f}%)"
     else:
         try:
-            sig = _calc_signal(h["ticker"], market)
+            sig = _calc_signal(h["ticker"], market, regime)
             sig_details = sig
             if sig["signal"] == "sell":
                 sell_reason = sig["reason"]
@@ -522,7 +551,7 @@ def _check_and_sell(h: dict, market: str):
         return False
 
 
-def _buy_stocks(target_market: str, held: set[str], pos_mult: float):
+def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str = "sideways"):
     """target_market 종목 신규 매수 스캔."""
     try:
         journal_stocks  = _sb().table("quant_stocks").select("ticker, name, market").execute().data or []
@@ -548,7 +577,7 @@ def _buy_stocks(target_market: str, held: set[str], pos_mult: float):
                 continue
 
             try:
-                sig = _calc_signal(ticker, market)
+                sig = _calc_signal(ticker, market, regime)
                 if sig["signal"] != "buy" or not sig.get("current_price"):
                     continue
 
@@ -645,6 +674,10 @@ def scan_and_trade():
 
     _ensure_universe()
 
+    from backend.services.regime_detector import detect_regime
+    regime = detect_regime()
+    print(f"[quant] 시장 국면: {regime}")
+
     if _daily_loss_exceeded():
         print("[quant] 일일 손실 한도 초과 — 매매 중단")
         return
@@ -706,13 +739,13 @@ def scan_and_trade():
     # ② KR 청산 체크
     if kr_open:
         for h in kr_holdings:
-            if _check_and_sell(h, "KR"):
+            if _check_and_sell(h, "KR", regime):
                 held.discard(h["ticker"])
 
     # ③ US 청산 체크
     if us_open:
         for h in us_holdings:
-            if _check_and_sell(h, "US"):
+            if _check_and_sell(h, "US", regime):
                 held.discard(h["ticker"])
 
     # ④ 신규 매수
@@ -721,11 +754,12 @@ def scan_and_trade():
 
     pos_mult = _vkospi_position_multiplier()
 
-    if kr_open and not _market_halted():
+    halt_pct = REGIME_PARAMS.get(regime, REGIME_PARAMS["sideways"])["KOSPI_HALT_PCT"]
+    if kr_open and not _market_halted(halt_pct):
         try:
             cash_kr = get_account_cash()
             if cash_kr >= MAX_AMOUNT_PER_STOCK:
-                _buy_stocks("KR", held, pos_mult)
+                _buy_stocks("KR", held, pos_mult, regime)
             else:
                 print(f"[quant] KR 잔고 부족: {cash_kr:,.0f}원")
         except Exception as e:
@@ -735,7 +769,7 @@ def scan_and_trade():
         try:
             cash_usd = get_us_account_cash_usd()
             if cash_usd >= MAX_AMOUNT_PER_STOCK_USD:
-                _buy_stocks("US", held, pos_mult)
+                _buy_stocks("US", held, pos_mult, regime)
             else:
                 print(f"[quant] US 잔고 부족: ${cash_usd:,.2f}")
         except Exception as e:
@@ -746,6 +780,9 @@ def scan_and_trade():
 
 def get_universe_signals() -> list[dict]:
     _ensure_universe()
+
+    from backend.services.regime_detector import detect_regime
+    regime = detect_regime()
 
     system_stocks = _sb().table("autotrade_watchlist").select("ticker, name, market").execute().data or []
     seen = {s["ticker"] for s in system_stocks}
@@ -780,13 +817,14 @@ def get_universe_signals() -> list[dict]:
     for stock in universe:
         market = (stock.get("market") or "KR").upper()
         try:
-            sig = _calc_signal(stock["ticker"], market)
+            sig = _calc_signal(stock["ticker"], market, regime)
             results.append({
                 "ticker": stock["ticker"],
                 "name":   stock["name"],
                 "market": market,
                 "source": stock["source"],
                 "note":   note_map.get(stock["ticker"], ""),
+                "regime": regime,
                 **sig,
             })
         except Exception as e:
@@ -796,6 +834,7 @@ def get_universe_signals() -> list[dict]:
                 "market": market,
                 "source": stock["source"],
                 "note":   note_map.get(stock["ticker"], ""),
+                "regime": regime,
                 "signal": "hold",
                 "reason": str(e),
             })
