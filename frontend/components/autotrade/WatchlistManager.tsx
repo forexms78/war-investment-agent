@@ -17,33 +17,32 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
 };
 
-function btnStyle(disabled: boolean, variant: "add" | "del"): React.CSSProperties {
+function btnStyle(disabled: boolean, variant: "add" | "del" | "edit" | "done"): React.CSSProperties {
+  const map = {
+    add:  { bg: disabled ? "var(--card-hover)" : "var(--accent)",              color: disabled ? "var(--text-muted)" : "#fff" },
+    del:  { bg: "rgba(239,68,68,0.15)",                                         color: "var(--red)" },
+    edit: { bg: "var(--card-hover)",                                            color: "var(--text-secondary)" },
+    done: { bg: "rgba(16,185,129,0.15)",                                        color: "var(--green)" },
+  };
   return {
-    padding: variant === "add" ? "9px 18px" : "5px 12px",
+    padding: variant === "del" ? "4px 10px" : "7px 14px",
     borderRadius: 7,
     border: "none",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 700,
     cursor: disabled ? "not-allowed" : "pointer",
-    background: disabled
-      ? "var(--card-hover)"
-      : variant === "add"
-      ? "var(--accent)"
-      : "rgba(239,68,68,0.15)",
-    color: disabled
-      ? "var(--text-muted)"
-      : variant === "add"
-      ? "#fff"
-      : "var(--red)",
+    background: map[variant].bg,
+    color: map[variant].color,
   };
 }
 
 export default function WatchlistManager({ apiUrl }: { apiUrl: string }) {
-  const [items, setItems]     = useState<WatchItem[]>([]);
-  const [ticker, setTicker]   = useState("");
-  const [market, setMarket]   = useState<"KR" | "US">("KR");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [items, setItems]       = useState<WatchItem[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [ticker, setTicker]     = useState("");
+  const [market, setMarket]     = useState<"KR" | "US">("KR");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   async function load() {
     try {
@@ -66,7 +65,7 @@ export default function WatchlistManager({ apiUrl }: { apiUrl: string }) {
       const res = await fetch(`${apiUrl}/autotrade/watchlist`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: t, name: t, market }),
+        body: JSON.stringify({ ticker: t, market }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -100,54 +99,65 @@ export default function WatchlistManager({ apiUrl }: { apiUrl: string }) {
       borderRadius: 12,
       padding: "20px 24px",
     }}>
-      <p style={{
-        color: "var(--text-muted)", fontSize: 11, fontWeight: 600,
-        letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 14px",
-      }}>
-        워치리스트 관리
-      </p>
-
-      {/* 추가 폼 */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        <input
-          value={ticker}
-          onChange={e => setTicker(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && !loading && handleAdd()}
-          placeholder="티커 (예: 005930, AAPL)"
-          style={{ ...inputStyle, flex: 1, minWidth: 160 }}
-        />
-        <select
-          value={market}
-          onChange={e => setMarket(e.target.value as "KR" | "US")}
-          style={{ ...inputStyle, cursor: "pointer" }}
-        >
-          <option value="KR">KR</option>
-          <option value="US">US</option>
-        </select>
-        <button
-          onClick={handleAdd}
-          disabled={loading || !ticker.trim()}
-          style={btnStyle(loading || !ticker.trim(), "add")}
-        >
-          {loading ? "추가 중..." : "+ 추가"}
-        </button>
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <p style={{
+          color: "var(--text-muted)", fontSize: 11, fontWeight: 600,
+          letterSpacing: "0.04em", textTransform: "uppercase", margin: 0,
+        }}>
+          워치리스트 관리 ({items.length}종목)
+        </p>
+        {editMode ? (
+          <button onClick={() => setEditMode(false)} style={btnStyle(false, "done")}>완료</button>
+        ) : (
+          <button onClick={() => setEditMode(true)} style={btnStyle(false, "edit")}>수정</button>
+        )}
       </div>
 
-      {error && (
-        <p style={{ fontSize: 12, color: "var(--red)", margin: "0 0 10px" }}>{error}</p>
+      {/* 추가 폼 — 수정 모드에서만 표시 */}
+      {editMode && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              value={ticker}
+              onChange={e => setTicker(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !loading && handleAdd()}
+              placeholder="티커 (예: 005930, AAPL)"
+              style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+            />
+            <select
+              value={market}
+              onChange={e => setMarket(e.target.value as "KR" | "US")}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              <option value="KR">KR</option>
+              <option value="US">US</option>
+            </select>
+            <button
+              onClick={handleAdd}
+              disabled={loading || !ticker.trim()}
+              style={btnStyle(loading || !ticker.trim(), "add")}
+            >
+              {loading ? "조회 중..." : "+ 추가"}
+            </button>
+          </div>
+          {error && (
+            <p style={{ fontSize: 12, color: "var(--red)", margin: "8px 0 0" }}>{error}</p>
+          )}
+        </div>
       )}
 
-      {/* 목록 테이블 */}
+      {/* 목록 */}
       {items.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>등록된 종목 없음</p>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr>
-              {["티커", "종목명", "시장", ""].map((h, i) => (
+              {["티커", "종목명", "시장", ...(editMode ? [""] : [])].map((h, i) => (
                 <th key={i} style={{
                   padding: "6px 10px",
-                  textAlign: i === 3 ? "right" : "left",
+                  textAlign: editMode && i === 3 ? "right" : "left",
                   fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
                   borderBottom: "1px solid var(--border)", letterSpacing: "0.04em",
                 }}>
@@ -174,14 +184,13 @@ export default function WatchlistManager({ apiUrl }: { apiUrl: string }) {
                     {item.market}
                   </span>
                 </td>
-                <td style={{ padding: "8px 10px", textAlign: "right" }}>
-                  <button
-                    onClick={() => handleDelete(item.ticker)}
-                    style={btnStyle(false, "del")}
-                  >
-                    삭제
-                  </button>
-                </td>
+                {editMode && (
+                  <td style={{ padding: "8px 10px", textAlign: "right" }}>
+                    <button onClick={() => handleDelete(item.ticker)} style={btnStyle(false, "del")}>
+                      삭제
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

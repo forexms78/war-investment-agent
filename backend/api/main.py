@@ -564,13 +564,34 @@ async def autotrade_watchlist():
     result = _sb().table("autotrade_watchlist").select("*").order("ticker").execute()
     return result.data or []
 
+def _resolve_stock_name(ticker: str, market: str) -> str:
+    try:
+        if market == "KR":
+            from backend.services.kis_trader import _headers, BASE_URL
+            import requests as _req
+            res = _req.get(
+                f"{BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price",
+                headers=_headers("FHKST01010100"),
+                params={"fid_cond_mrkt_div_code": "J", "fid_input_iscd": ticker},
+                timeout=5,
+            )
+            name = res.json().get("output", {}).get("hts_kor_isnm", "").strip()
+            return name or ticker
+        else:
+            import yfinance as yf
+            info = yf.Ticker(ticker).info
+            return info.get("shortName") or info.get("longName") or ticker
+    except Exception:
+        return ticker
+
+
 @app.post("/autotrade/watchlist")
 async def add_to_watchlist(body: dict):
-    ticker = body.get("ticker", "").strip()
-    name = body.get("name", ticker)
+    ticker = body.get("ticker", "").strip().upper()
     market = body.get("market", "KR").upper()
     if not ticker:
         return {"error": "ticker 필수"}
+    name = await _run(_resolve_stock_name, ticker, market)
     result = _sb().table("autotrade_watchlist").upsert(
         {"ticker": ticker, "name": name, "market": market}, on_conflict="ticker"
     ).execute()
