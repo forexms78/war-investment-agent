@@ -616,6 +616,26 @@ def _resolve_stock_name(ticker: str, market: str) -> str:
             return ticker
 
 
+@app.post("/autotrade/watchlist/refresh-names")
+async def refresh_watchlist_names():
+    """종목명이 ticker와 동일한 항목을 일괄 재조회·업데이트"""
+    rows = _sb().table("autotrade_watchlist").select("ticker, name, market").execute().data or []
+    updated, failed = [], []
+    for row in rows:
+        ticker = row["ticker"]
+        market = (row.get("market") or "KR").upper()
+        current_name = row.get("name", "")
+        # 이름이 ticker와 같거나 숫자로만 이루어진 경우 재조회
+        if current_name == ticker or current_name.isdigit():
+            new_name = await _run(_resolve_stock_name, ticker, market)
+            if new_name and new_name != ticker:
+                _sb().table("autotrade_watchlist").update({"name": new_name}).eq("ticker", ticker).execute()
+                updated.append({"ticker": ticker, "old": current_name, "new": new_name})
+            else:
+                failed.append({"ticker": ticker, "reason": "이름 조회 실패"})
+    return {"updated": updated, "failed": failed, "total_checked": len(rows)}
+
+
 @app.post("/autotrade/watchlist")
 async def add_to_watchlist(body: dict):
     ticker = body.get("ticker", "").strip().upper()
