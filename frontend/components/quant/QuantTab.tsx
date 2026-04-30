@@ -217,7 +217,26 @@ function QuantDashboard() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} style={{ padding: "24px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>불러오는 중...</td></tr>
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td style={{ padding: "12px 16px" }}>
+                        <div className="skeleton" style={{ height: 13, width: "65%", marginBottom: 6 }} />
+                        <div className="skeleton" style={{ height: 10, width: "35%" }} />
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        <div className="skeleton" style={{ height: 12, width: 60, margin: "0 auto" }} />
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        <div className="skeleton" style={{ height: 12, width: 50, margin: "0 auto" }} />
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        <div className="skeleton" style={{ height: 12, width: 50, margin: "0 auto" }} />
+                      </td>
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        <div className="skeleton" style={{ height: 18, width: 44, borderRadius: 4, margin: "0 auto" }} />
+                      </td>
+                    </tr>
+                  ))
                 ) : signals.slice(0, 8).map(s => (
                   <tr key={s.ticker} style={{ borderBottom: "1px solid var(--border)" }}>
                     <td style={{ padding: "12px 16px" }}>
@@ -265,7 +284,18 @@ function QuantDashboard() {
             </div>
             <div style={{ padding: "8px 0" }}>
               {loading ? (
-                <p style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13, margin: 0 }}>불러오는 중...</p>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 20px", borderBottom: i < 4 ? "1px solid var(--border)" : "none",
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="skeleton" style={{ height: 13, width: "55%", marginBottom: 6 }} />
+                      <div className="skeleton" style={{ height: 10, width: "35%" }} />
+                    </div>
+                    <div className="skeleton" style={{ height: 10, width: 64, flexShrink: 0, marginLeft: 12 }} />
+                  </div>
+                ))
               ) : stocks.length === 0 ? (
                 <div style={{ padding: "20px", textAlign: "center" }}>
                   <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "0 0 12px" }}>추적 중인 종목 없음</p>
@@ -298,7 +328,21 @@ function QuantDashboard() {
             </div>
             <div style={{ padding: "8px 0" }}>
               {loading ? (
-                <p style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13, margin: 0 }}>불러오는 중...</p>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{
+                    padding: "10px 20px", borderBottom: i < 4 ? "1px solid var(--border)" : "none",
+                    display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+                  }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flex: 1 }}>
+                      <div className="skeleton" style={{ height: 18, width: 44, borderRadius: 4, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div className="skeleton" style={{ height: 13, width: "40%", marginBottom: 5 }} />
+                        <div className="skeleton" style={{ height: 10, width: "60%" }} />
+                      </div>
+                    </div>
+                    <div className="skeleton" style={{ height: 10, width: 56, flexShrink: 0 }} />
+                  </div>
+                ))
               ) : trades.length === 0 ? (
                 <p style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13, margin: 0 }}>체결 내역 없음</p>
               ) : trades.map(t => (
