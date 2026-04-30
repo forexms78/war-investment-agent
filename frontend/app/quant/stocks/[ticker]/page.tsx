@@ -112,8 +112,77 @@ function StockDetailContent() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "var(--text-muted)", fontSize: 14 }}>로딩 중...</p>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-primary)" }}>
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 2, zIndex: 200, overflow: "hidden", background: "var(--border)" }}>
+        <div style={{
+          height: "100%", background: "var(--accent)",
+          animation: "loadingBar 1.8s ease-in-out infinite", transformOrigin: "left",
+        }} />
+      </div>
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 200, height: 26, borderRadius: 6,
+            background: "var(--card-hover)",
+            animation: "shimmer 1.4s infinite linear",
+            backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)",
+            backgroundSize: "800px 100%",
+          }} />
+          <div style={{ width: 80, height: 22, borderRadius: 5, background: "var(--card-hover)" }} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 12, padding: "18px 20px",
+            }}>
+              <div style={{
+                width: 80, height: 11, borderRadius: 4, marginBottom: 14,
+                background: "var(--card-hover)",
+              }} />
+              <div style={{
+                width: 100, height: 22, borderRadius: 5,
+                background: "var(--card-hover)",
+                animation: `shimmer ${1.2 + i * 0.15}s infinite linear`,
+                backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)",
+                backgroundSize: "800px 100%",
+              }} />
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+          <div style={{ width: 140, height: 14, borderRadius: 4, background: "var(--card-hover)", marginBottom: 16 }} />
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} style={{ display: "flex", gap: 16, padding: "10px 0", borderBottom: i < 3 ? "1px solid var(--border)" : "none" }}>
+              <div style={{
+                flex: 1, height: 13, borderRadius: 3,
+                background: "var(--card-hover)",
+                animation: `shimmer ${1.3 + i * 0.1}s infinite linear`,
+                backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)",
+                backgroundSize: "800px 100%",
+              }} />
+              <div style={{ width: 80, height: 13, borderRadius: 3, background: "var(--card-hover)" }} />
+            </div>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
+          종목 상세 데이터 조회 중...
+        </div>
+      </main>
+      <style>{`
+        @keyframes loadingBar {
+          0%   { transform: translateX(-100%) scaleX(0.3); }
+          50%  { transform: translateX(30%)   scaleX(0.6); }
+          100% { transform: translateX(100%)  scaleX(0.3); }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -400px 0; }
+          100% { background-position: 400px 0; }
+        }
+      `}</style>
     </div>
   );
 

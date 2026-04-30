@@ -167,7 +167,51 @@ function QuantResearchJournal() {
 
         {/* 종목 목록 */}
         {loading ? (
-          <p style={{ color: "var(--text-muted)", textAlign: "center", padding: "48px 0", fontSize: 13 }}>로딩 중...</p>
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 12, padding: "16px 20px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
+                    <div style={{ width: 4, height: 40, borderRadius: 2, background: "var(--card-hover)" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        width: `${100 + (i * 17) % 80}px`, height: 14, borderRadius: 4,
+                        background: "var(--card-hover)", marginBottom: 8,
+                        animation: `shimmer ${1.2 + i * 0.1}s infinite linear`,
+                        backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)",
+                        backgroundSize: "800px 100%",
+                      }} />
+                      <div style={{
+                        width: 60, height: 11, borderRadius: 3,
+                        background: "var(--card-hover)",
+                      }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    {[60, 60, 50].map((w, j) => (
+                      <div key={j} style={{
+                        width: w, height: 12, borderRadius: 3,
+                        background: "var(--card-hover)",
+                        animation: `shimmer ${1.3 + j * 0.1}s infinite linear`,
+                        backgroundImage: "linear-gradient(90deg, var(--card-hover) 0%, var(--border) 50%, var(--card-hover) 100%)",
+                        backgroundSize: "800px 100%",
+                      }} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <style>{`
+              @keyframes shimmer {
+                0%   { background-position: -400px 0; }
+                100% { background-position: 400px 0; }
+              }
+            `}</style>
+          </>
         ) : stocks.length === 0 ? (
           <div style={{
             background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
