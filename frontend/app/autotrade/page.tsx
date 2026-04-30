@@ -262,11 +262,6 @@ function AutoTradeContent() {
           }} />
         </div>
         <style>{`
-          @keyframes loadingBar {
-            0%   { transform: translateX(-100%) scaleX(0.3); }
-            50%  { transform: translateX(30%)   scaleX(0.6); }
-            100% { transform: translateX(100%)  scaleX(0.3); }
-          }
           @keyframes shimmer {
             0%   { background-position: -400px 0; }
             100% { background-position: 400px 0; }

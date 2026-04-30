@@ -114,6 +114,17 @@ function QuantResearchJournal() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text-primary)" }}>
+      {loading && (
+        <div style={{
+          position: "fixed", top: 56, left: 0, right: 0, height: 2, zIndex: 200,
+          overflow: "hidden", background: "var(--border)",
+        }}>
+          <div style={{
+            height: "100%", background: "var(--accent)",
+            animation: "loadingBar 1.8s ease-in-out infinite", transformOrigin: "left",
+          }} />
+        </div>
+      )}
       <QuantNav active="journal" />
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: 24 }}>
