@@ -920,7 +920,8 @@ def scan_and_trade():
         scan_log["summary"] = f"스캔 오류: {e}"
         print(f"[quant] scan_and_trade 오류: {e}")
     finally:
-        _save_scan_log(scan_log)
+        if scan_log["status"] != "skipped":
+            _save_scan_log(scan_log)
 
 
 # ── 대시보드용 시그널 스냅샷 ──────────────────────────
