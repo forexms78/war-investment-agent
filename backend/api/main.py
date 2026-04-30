@@ -610,6 +610,19 @@ async def autotrade_signals():
     from backend.services.quant_scheduler import get_universe_signals
     return await _run(get_universe_signals)
 
+@app.get("/autotrade/scan-logs")
+async def autotrade_scan_logs():
+    """직전 자동매매 스캔 결과 — 종목별 매수/거절 사유 포함"""
+    from backend.services.db_cache import db_get_stale
+    log = await _run(db_get_stale, "quant_scan_log")
+    if not log:
+        return {
+            "scan_at": None, "status": "no_data",
+            "summary": "아직 스캔이 실행되지 않았습니다 (장 시간 내 10분 단위로 실행)",
+            "logs": [],
+        }
+    return log
+
 @app.get("/autotrade/watchlist")
 async def autotrade_watchlist():
     from backend.services.quant_scheduler import _ensure_universe

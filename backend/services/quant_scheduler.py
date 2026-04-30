@@ -555,10 +555,17 @@ def _check_and_sell(h: dict, market: str, regime: str = "sideways"):
         return False
 
 
-def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str = "sideways"):
-    """target_market 종목 신규 매수 스캔."""
+def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str = "sideways") -> list[dict]:
+    """target_market 종목 신규 매수 스캔. 종목별 평가 로그 반환.
+
+    각 로그 엔트리: {ticker, name, market, signal, reason, stage, indicators}
+      signal: executed_buy | hold | sell | skip | error
+      stage:  position_limit | already_held | sector_filter | duplicate_check |
+              signal_calc | financial_filter | dart_block | news_block |
+              qty_zero | executed | error
+    """
+    logs: list[dict] = []
     try:
-        # 골든크로스 프리스캔 후보 (장 시작 전 08:30 캐시됨) — 최우선
         from backend.services.market_scanner import get_scan_candidates
         scan_candidates = [s for s in get_scan_candidates() if s.get("market", "KR").upper() == target_market]
 
@@ -573,23 +580,62 @@ def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str
 
         for stock in all_stocks:
             ticker = stock["ticker"]
+            name   = stock.get("name", ticker)
             market = (stock.get("market") or "KR").upper()
 
             if market != target_market:
                 continue
-            if ticker in held or len(held) >= MAX_POSITIONS:
-                break
+
+            log: dict = {
+                "ticker": ticker, "name": name, "market": market, "regime": regime,
+                "signal": "skip", "reason": "", "stage": "", "indicators": {},
+            }
+
+            if len(held) >= MAX_POSITIONS:
+                log["reason"] = f"포지션 한도 도달 ({MAX_POSITIONS}종목)"
+                log["stage"]  = "position_limit"
+                logs.append(log)
+                if len(logs) >= 100:
+                    break
+                continue
+            if ticker in held:
+                log["reason"] = "이미 보유 중"
+                log["stage"]  = "already_held"
+                logs.append(log)
+                continue
             if not _sector_ok(ticker, held):
+                log["reason"] = f"동일섹터 한도 초과: {SECTOR_MAP.get(ticker, '미분류')}"
+                log["stage"]  = "sector_filter"
+                logs.append(log)
                 continue
             if _order_duplicate(ticker, "buy"):
+                log["reason"] = "당일 이미 매수"
+                log["stage"]  = "duplicate_check"
+                logs.append(log)
                 continue
 
             try:
                 sig = _calc_signal(ticker, market, regime)
+                log["indicators"] = {
+                    "current_price": sig.get("current_price"),
+                    "ma5":     sig.get("ma5"),
+                    "ma20":    sig.get("ma20"),
+                    "rsi":     sig.get("rsi"),
+                    "per":     sig.get("per"),
+                    "pbr":     sig.get("pbr"),
+                    "macd_ok": sig.get("macd_ok"),
+                    "vol_ok":  sig.get("vol_ok"),
+                    "mtf_ok":  sig.get("mtf_ok"),
+                }
+
                 if sig["signal"] != "buy" or not sig.get("current_price"):
+                    log["signal"] = sig["signal"]
+                    log["reason"] = sig["reason"]
+                    log["stage"]  = "signal_calc"
+                    logs.append(log)
                     continue
 
-                # 5단계 재무 필터 (1회만 호출 — 결과 재사용)
+                # 5단계 재무 필터
                 fin_passed, fin_reason = True, ""
                 fin_details: dict = {}
                 if USE_FINANCIAL_FILTER:
@@ -597,12 +643,14 @@ def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str
                         from backend.services.financial_filter import passes_5stage_filter
                         fin_passed, fin_reason, fin_details = passes_5stage_filter(ticker, market, regime)
                         if not fin_passed:
-                            print(f"[quant] {ticker} 재무 필터 탈락: {fin_reason}")
+                            log["reason"] = f"재무필터 탈락: {fin_reason}"
+                            log["stage"]  = "financial_filter"
+                            logs.append(log)
                             continue
                     except Exception:
                         fin_passed = True
 
-                # DART 긴급차단 (Gemini 호출 전 코드 레벨 차단)
+                # DART 긴급차단 (KR만)
                 if market == "KR":
                     try:
                         from backend.services.dart_service import get_corp_code, check_emergency_block
@@ -610,20 +658,28 @@ def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str
                         if corp_code:
                             dart_blocked, disc_title = check_emergency_block(corp_code)
                             if dart_blocked:
-                                print(f"[quant] {ticker} DART 긴급차단: {disc_title}")
+                                log["reason"] = f"DART 긴급차단: {disc_title}"
+                                log["stage"]  = "dart_block"
+                                logs.append(log)
                                 continue
                     except Exception as _e:
                         print(f"[quant] {ticker} DART 차단 체크 오류: {_e}")
 
-                news_blocked, news_info = _news_blocks_trade(ticker, stock.get("name", ticker))
+                news_blocked, news_info = _news_blocks_trade(ticker, name)
                 if news_blocked:
-                    print(f"[quant] {ticker} 부정 뉴스 — 진입 차단")
+                    log["reason"] = f"부정 뉴스 차단: {news_info.get('block_reason', '')}"
+                    log["stage"]  = "news_block"
+                    logs.append(log)
                     continue
 
+                # 매수 실행
                 if market == "US":
-                    amount = int(MAX_AMOUNT_PER_STOCK_USD * pos_mult)
-                    qty    = calculate_quantity(amount, sig["current_price"])
+                    amount   = int(MAX_AMOUNT_PER_STOCK_USD * pos_mult)
+                    qty      = calculate_quantity(amount, sig["current_price"])
                     if qty <= 0:
+                        log["reason"] = f"수량 0 (가격 ${sig['current_price']:.2f} > 한도 ${amount})"
+                        log["stage"]  = "qty_zero"
+                        logs.append(log)
                         continue
                     exchange = get_ticker_exchange(ticker)
                     result   = buy_us_market_order(ticker, qty, exchange)
@@ -631,6 +687,9 @@ def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str
                     amount = int(MAX_AMOUNT_PER_STOCK * pos_mult)
                     qty    = calculate_quantity(amount, sig["current_price"])
                     if qty <= 0:
+                        log["reason"] = f"수량 0 (가격 {sig['current_price']:,.0f}원 > 한도 {amount:,}원)"
+                        log["stage"]  = "qty_zero"
+                        logs.append(log)
                         continue
                     result = buy_market_order(ticker, qty)
 
@@ -657,122 +716,211 @@ def _buy_stocks(target_market: str, held: set[str], pos_mult: float, regime: str
                 _notify("buy", ticker, market, sig["current_price"], qty, sig["reason"])
                 held.add(ticker)
 
+                log["signal"] = "executed_buy"
+                log["reason"] = f"매수 체결 {qty}주: {sig['reason']}"
+                log["stage"]  = "executed"
+                logs.append(log)
+
             except Exception as e:
+                log["signal"] = "error"
+                log["reason"] = f"처리 오류: {e}"
+                log["stage"]  = "error"
+                logs.append(log)
                 print(f"[quant] {ticker} 처리 오류: {e}")
                 if any(code in str(e) for code in ["401", "403", "API"]):
                     _notify("buy", "SYSTEM", market, 0, 0, f"API 오류로 자동매매 중단: {e}")
-                    return
+                    return logs
+
+            if len(logs) >= 100:
+                break
 
     except Exception as e:
         print(f"[quant] {target_market} 매수 스캔 오류: {e}")
 
+    return logs
+
+
+def _save_scan_log(scan_log: dict):
+    """스캔 결과를 api_cache 테이블에 jsonb로 저장. 프론트가 /autotrade/scan-logs로 조회."""
+    try:
+        from backend.services.db_cache import db_set
+        db_set("quant_scan_log", scan_log)
+    except Exception as e:
+        print(f"[quant] scan_log 저장 실패: {e}")
+
 
 def scan_and_trade():
-    if not _is_trading_hours():
-        return
+    scan_log: dict = {
+        "scan_at": datetime.now(_KST).isoformat(),
+        "regime": None,
+        "status": "running",
+        "summary": "",
+        "kr_open": False,
+        "us_open": False,
+        "held_tickers": [],
+        "logs": [],
+    }
 
-    _ensure_universe()
+    try:
+        if not _is_trading_hours():
+            scan_log["status"]  = "skipped"
+            scan_log["summary"] = "장 시간 외 (KR 09:00~15:30 / US 23:30~06:00 KST)"
+            return
 
-    from backend.services.regime_detector import detect_regime
-    regime = detect_regime()
-    print(f"[quant] 시장 국면: {regime}")
+        _ensure_universe()
 
-    if _daily_loss_exceeded():
-        print("[quant] 일일 손실 한도 초과 — 매매 중단")
-        return
+        from backend.services.regime_detector import detect_regime
+        regime = detect_regime()
+        scan_log["regime"] = regime
+        print(f"[quant] 시장 국면: {regime}")
 
-    kr_open = _is_kr_trading_hours()
-    us_open = _is_us_trading_hours()
+        if _daily_loss_exceeded():
+            scan_log["status"]  = "halted"
+            scan_log["summary"] = f"일일 손실 한도 {DAILY_LOSS_LIMIT_PCT}% 초과 - 매매 중단"
+            print("[quant] 일일 손실 한도 초과 — 매매 중단")
+            return
 
-    # 보유 종목 조회
-    kr_holdings: list[dict] = []
-    us_holdings: list[dict] = []
-    if kr_open:
-        try:
-            kr_holdings = get_holdings()
-        except Exception as e:
-            print(f"[quant] KR 보유 종목 조회 오류: {e}")
-    if us_open:
-        try:
-            us_holdings = get_us_holdings()
-        except Exception as e:
-            print(f"[quant] US 보유 종목 조회 오류: {e}")
+        kr_open = _is_kr_trading_hours()
+        us_open = _is_us_trading_hours()
+        scan_log["kr_open"] = kr_open
+        scan_log["us_open"] = us_open
 
-    held = {h["ticker"] for h in kr_holdings + us_holdings}
-
-    # ① KR 강제 청산 (15:00 이후)
-    if kr_open and _is_kr_force_close_time():
-        for h in kr_holdings:
-            if _order_duplicate(h["ticker"], "sell"):
-                continue
+        # 보유 종목 조회
+        kr_holdings: list[dict] = []
+        us_holdings: list[dict] = []
+        if kr_open:
             try:
-                result   = sell_market_order(h["ticker"], h["quantity"])
-                order_id = result.get("output", {}).get("ODNO", "")
-                _record_trade(h["ticker"], "sell", h["current_price"], h["quantity"],
-                              "강제청산 (장마감 30분전)", order_id,
-                              {"pnl_pct": h["pnl_pct"]}, "KR")
-                _notify("sell", h["ticker"], "KR", h["current_price"], h["quantity"], "강제청산")
-                _trailing_activated.discard(h["ticker"])
+                kr_holdings = get_holdings()
             except Exception as e:
-                print(f"[quant] KR 강제청산 오류 {h['ticker']}: {e}")
-        return
-
-    # ① US 강제 청산 (06:00 KST 이후 — 미국장 마감)
-    if us_open and _is_us_force_close_time():
-        for h in us_holdings:
-            if _order_duplicate(h["ticker"], "sell"):
-                continue
+                print(f"[quant] KR 보유 종목 조회 오류: {e}")
+        if us_open:
             try:
-                exchange = h.get("exchange") or get_ticker_exchange(h["ticker"])
-                result   = sell_us_market_order(h["ticker"], h["quantity"], exchange)
-                order_id = result.get("output", {}).get("ODNO", "")
-                _record_trade(h["ticker"], "sell", h["current_price"], h["quantity"],
-                              "강제청산 (미장 마감)", order_id,
-                              {"pnl_pct": h["pnl_pct"]}, "US")
-                _notify("sell", h["ticker"], "US", h["current_price"], h["quantity"], "강제청산 (미장 마감)")
-                _trailing_activated.discard(h["ticker"])
+                us_holdings = get_us_holdings()
             except Exception as e:
-                print(f"[quant] US 강제청산 오류 {h['ticker']}: {e}")
-        return
+                print(f"[quant] US 보유 종목 조회 오류: {e}")
 
-    # ② KR 청산 체크
-    if kr_open:
-        for h in kr_holdings:
-            if _check_and_sell(h, "KR", regime):
-                held.discard(h["ticker"])
+        held = {h["ticker"] for h in kr_holdings + us_holdings}
+        scan_log["held_tickers"] = list(held)
 
-    # ③ US 청산 체크
-    if us_open:
-        for h in us_holdings:
-            if _check_and_sell(h, "US", regime):
-                held.discard(h["ticker"])
+        # KR 강제 청산
+        if kr_open and _is_kr_force_close_time():
+            scan_log["status"]  = "force_close_kr"
+            scan_log["summary"] = "KR 장마감 30분 전 강제 청산"
+            for h in kr_holdings:
+                if _order_duplicate(h["ticker"], "sell"):
+                    continue
+                try:
+                    result   = sell_market_order(h["ticker"], h["quantity"])
+                    order_id = result.get("output", {}).get("ODNO", "")
+                    _record_trade(h["ticker"], "sell", h["current_price"], h["quantity"],
+                                  "강제청산 (장마감 30분전)", order_id,
+                                  {"pnl_pct": h["pnl_pct"]}, "KR")
+                    _notify("sell", h["ticker"], "KR", h["current_price"], h["quantity"], "강제청산")
+                    _trailing_activated.discard(h["ticker"])
+                except Exception as e:
+                    print(f"[quant] KR 강제청산 오류 {h['ticker']}: {e}")
+            return
 
-    # ④ 신규 매수
-    if len(held) >= MAX_POSITIONS:
-        return
+        # US 강제 청산
+        if us_open and _is_us_force_close_time():
+            scan_log["status"]  = "force_close_us"
+            scan_log["summary"] = "US 장마감 강제 청산"
+            for h in us_holdings:
+                if _order_duplicate(h["ticker"], "sell"):
+                    continue
+                try:
+                    exchange = h.get("exchange") or get_ticker_exchange(h["ticker"])
+                    result   = sell_us_market_order(h["ticker"], h["quantity"], exchange)
+                    order_id = result.get("output", {}).get("ODNO", "")
+                    _record_trade(h["ticker"], "sell", h["current_price"], h["quantity"],
+                                  "강제청산 (미장 마감)", order_id,
+                                  {"pnl_pct": h["pnl_pct"]}, "US")
+                    _notify("sell", h["ticker"], "US", h["current_price"], h["quantity"], "강제청산 (미장 마감)")
+                    _trailing_activated.discard(h["ticker"])
+                except Exception as e:
+                    print(f"[quant] US 강제청산 오류 {h['ticker']}: {e}")
+            return
 
-    pos_mult = _vkospi_position_multiplier()
+        # KR/US 청산 체크
+        if kr_open:
+            for h in kr_holdings:
+                if _check_and_sell(h, "KR", regime):
+                    held.discard(h["ticker"])
+        if us_open:
+            for h in us_holdings:
+                if _check_and_sell(h, "US", regime):
+                    held.discard(h["ticker"])
 
-    halt_pct = REGIME_PARAMS.get(regime, REGIME_PARAMS["sideways"])["KOSPI_HALT_PCT"]
-    if kr_open and not _market_halted(halt_pct):
-        try:
-            cash_kr = get_account_cash()
-            if cash_kr >= MAX_AMOUNT_PER_STOCK:
-                _buy_stocks("KR", held, pos_mult, regime)
+        # 신규 매수
+        if len(held) >= MAX_POSITIONS:
+            scan_log["status"]  = "position_full"
+            scan_log["summary"] = f"포지션 한도 도달 ({len(held)}/{MAX_POSITIONS})"
+            return
+
+        pos_mult = _vkospi_position_multiplier()
+        scan_log["pos_mult"] = pos_mult
+
+        halt_pct = REGIME_PARAMS.get(regime, REGIME_PARAMS["sideways"])["KOSPI_HALT_PCT"]
+        if kr_open:
+            if _market_halted(halt_pct):
+                scan_log["logs"].append({
+                    "ticker": "KOSPI", "name": "KOSPI 시장", "market": "KR",
+                    "signal": "halt", "stage": "market_halt",
+                    "reason": f"코스피 일중 {halt_pct}% 이상 하락 - KR 신규 진입 중단",
+                })
             else:
-                print(f"[quant] KR 잔고 부족: {cash_kr:,.0f}원")
-        except Exception as e:
-            print(f"[quant] KR 잔고 조회 오류: {e}")
+                try:
+                    cash_kr = get_account_cash()
+                    scan_log["cash_kr"] = cash_kr
+                    if cash_kr >= MAX_AMOUNT_PER_STOCK:
+                        scan_log["logs"].extend(_buy_stocks("KR", held, pos_mult, regime))
+                    else:
+                        scan_log["logs"].append({
+                            "ticker": "ACCOUNT", "name": "KR 계좌", "market": "KR",
+                            "signal": "halt", "stage": "low_cash",
+                            "reason": f"잔고 부족: {cash_kr:,.0f}원 < {MAX_AMOUNT_PER_STOCK:,}원",
+                        })
+                        print(f"[quant] KR 잔고 부족: {cash_kr:,.0f}원")
+                except Exception as e:
+                    scan_log["logs"].append({
+                        "ticker": "ACCOUNT", "name": "KR 계좌", "market": "KR",
+                        "signal": "error", "stage": "cash_error",
+                        "reason": f"잔고 조회 오류: {e}",
+                    })
+                    print(f"[quant] KR 잔고 조회 오류: {e}")
 
-    if us_open:
-        try:
-            cash_usd = get_us_account_cash_usd()
-            if cash_usd >= MAX_AMOUNT_PER_STOCK_USD:
-                _buy_stocks("US", held, pos_mult, regime)
-            else:
-                print(f"[quant] US 잔고 부족: ${cash_usd:,.2f}")
-        except Exception as e:
-            print(f"[quant] US 잔고 조회 오류: {e}")
+        if us_open:
+            try:
+                cash_usd = get_us_account_cash_usd()
+                scan_log["cash_usd"] = cash_usd
+                if cash_usd >= MAX_AMOUNT_PER_STOCK_USD:
+                    scan_log["logs"].extend(_buy_stocks("US", held, pos_mult, regime))
+                else:
+                    scan_log["logs"].append({
+                        "ticker": "ACCOUNT", "name": "US 계좌", "market": "US",
+                        "signal": "halt", "stage": "low_cash",
+                        "reason": f"잔고 부족: ${cash_usd:,.2f} < ${MAX_AMOUNT_PER_STOCK_USD}",
+                    })
+                    print(f"[quant] US 잔고 부족: ${cash_usd:,.2f}")
+            except Exception as e:
+                scan_log["logs"].append({
+                    "ticker": "ACCOUNT", "name": "US 계좌", "market": "US",
+                    "signal": "error", "stage": "cash_error",
+                    "reason": f"잔고 조회 오류: {e}",
+                })
+                print(f"[quant] US 잔고 조회 오류: {e}")
+
+        scan_log["status"] = "completed"
+        if not scan_log["summary"]:
+            executed = sum(1 for l in scan_log["logs"] if l.get("signal") == "executed_buy")
+            scan_log["summary"] = f"스캔 완료 - {executed}건 매수 / {len(scan_log['logs'])}종목 평가"
+
+    except Exception as e:
+        scan_log["status"]  = "error"
+        scan_log["summary"] = f"스캔 오류: {e}"
+        print(f"[quant] scan_and_trade 오류: {e}")
+    finally:
+        _save_scan_log(scan_log)
 
 
 # ── 대시보드용 시그널 스냅샷 ──────────────────────────

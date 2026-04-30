@@ -4,6 +4,7 @@ import Link from "next/link";
 import SignalBadge from "@/components/quant/SignalBadge";
 import PasswordGate from "@/components/quant/PasswordGate";
 import WatchlistManager from "@/components/autotrade/WatchlistManager";
+import ScanLogPanel from "@/components/autotrade/ScanLogPanel";
 
 interface AccountSummary {
   cash: number;
@@ -131,7 +132,14 @@ function AutoTradeContent() {
   const [expandedId,   setExpandedId]   = useState<number | null>(null);
   const [wsNotif,      setWsNotif]      = useState<WsNotification | null>(null);
   const [wsConnected,  setWsConnected]  = useState(false);
+  const [elapsed,      setElapsed]      = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!loading) return;
+    const t = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [loading]);
 
   useEffect(() => {
     Promise.all([
@@ -300,9 +308,37 @@ function AutoTradeContent() {
             ))}
           </div>
 
-          <div style={{ textAlign: "center", padding: "8px 0", color: "var(--text-muted)", fontSize: 12 }}>
-            KIS API에서 종목 데이터 수신 중 · 25개 종목 순차 조회 (약 30~60초 소요)
+          <div style={{ textAlign: "center", padding: "16px 0 8px 0" }}>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 18px",
+              background: "var(--card)", border: "1px solid var(--border)", borderRadius: 999,
+              fontSize: 12, color: "var(--text-primary)",
+            }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: elapsed < 30 ? "var(--accent)" : "#f59e0b",
+                animation: "pulse 1.2s ease-in-out infinite",
+              }} />
+              <span>
+                {elapsed < 8 && "KIS API에서 종목 데이터 수신 중..."}
+                {elapsed >= 8 && elapsed < 30 && "백엔드 데이터 조회 중 · 25개 종목 순차 처리"}
+                {elapsed >= 30 && elapsed < 60 && "Render Free Tier 콜드스타트 — 백엔드를 깨우는 중입니다"}
+                {elapsed >= 60 && "예상보다 오래 걸리네요. 새로고침을 시도해주세요"}
+              </span>
+              <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                {elapsed}초
+              </span>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>
+              {elapsed >= 30 ? "Render Free Tier는 15분 비활성 시 슬립 — 첫 요청에 30~60초 소요됩니다" : "30초 이상 걸려도 정상이니 잠시만 기다려주세요"}
+            </div>
           </div>
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50%      { opacity: 0.5; transform: scale(1.3); }
+            }
+          `}</style>
         </main>
       </div>
     );
@@ -418,9 +454,9 @@ function AutoTradeContent() {
           <span style={{ color: "var(--text-muted)", fontSize: 12, fontWeight: 600 }}>리스크 설정</span>
           {[
             { label: "종목당 최대", value: "50만원", color: "var(--gold)" },
-            { label: "손절", value: "-5%", color: "var(--red)" },
-            { label: "익절", value: "+10% / 트레일링", color: "var(--green)" },
-            { label: "최대보유", value: "5종목", color: "var(--accent)" },
+            { label: "손절", value: "-7%", color: "var(--red)" },
+            { label: "익절", value: "+15% / 트레일링", color: "var(--green)" },
+            { label: "최대보유", value: "8종목", color: "var(--accent)" },
             { label: "신호", value: "MA+RSI+MACD+거래량", color: "var(--text-secondary)" },
           ].map(({ label, value, color }) => (
             <span key={label} style={{ fontSize: 12, color: "var(--text-secondary)" }}>
@@ -705,6 +741,9 @@ function AutoTradeContent() {
             </table>
           </div>
         </div>}
+
+        {/* 스캔 로그 — 매수/거절 사유 가시화 */}
+        <ScanLogPanel />
 
         {/* 보유 종목 */}
         {(status?.holdings?.length ?? 0) > 0 && (
