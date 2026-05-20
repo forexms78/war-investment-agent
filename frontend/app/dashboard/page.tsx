@@ -397,7 +397,11 @@ export default function Home() {
                 {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} height={160} />)}
               </div>
             ) : (
-              <DailySignalSection data={dailySignal} />
+              <DailySignalSection
+                data={dailySignal}
+                onTickerSelect={setSelectedStock}
+                onSeeMore={() => setActiveTab("etfstocks")}
+              />
             )}
 
             <PilotsSection investors={investors} onSelect={setSelectedInvestor} />

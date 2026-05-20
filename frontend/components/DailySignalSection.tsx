@@ -46,28 +46,45 @@ function SentimentBadge({ sentiment, score }: { sentiment: string; score: number
 function RecommendationCard({
   item,
   type,
+  onSelect,
 }: {
   item: { ticker: string; name: string; reason?: string; confidence?: number; signals?: string[] };
   type: "buy" | "sell" | "focus";
+  onSelect?: (ticker: string) => void;
 }) {
   const signals = item.signals || [];
   const reason = item.reason || "";
   const confidence = item.confidence ?? null;
   const borderColor = type === "buy" ? "#10b981" : type === "sell" ? "#ef4444" : "#3b82f6";
   const label = type === "buy" ? "Buy" : type === "sell" ? "Sell" : "Watch";
+  const clickable = !!onSelect;
 
   return (
-    <div style={{
-      background: "var(--card)",
-      border: "1px solid var(--border)",
-      borderLeft: `3px solid ${borderColor}`,
-      borderRadius: 12,
-      padding: "14px 16px",
-      transition: "all 0.15s",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+    <div
+      onClick={() => onSelect?.(item.ticker)}
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderLeft: `3px solid ${borderColor}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+        transition: "transform 0.15s, border-color 0.15s, background 0.15s",
+        cursor: clickable ? "pointer" : "default",
+      }}
+      onMouseEnter={e => {
+        if (!clickable) return;
+        (e.currentTarget as HTMLDivElement).style.borderColor = borderColor;
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={e => {
+        if (!clickable) return;
+        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)";
+        (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div>
-          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>{item.ticker}</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>{item.ticker}</span>
           <span style={{ fontSize: 12, color: "var(--text-muted)", marginLeft: 6 }}>{item.name}</span>
         </div>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -84,7 +101,12 @@ function RecommendationCard({
         </div>
       </div>
       {reason && (
-        <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 8 }}>
+        <p style={{
+          fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.55,
+          marginBottom: 10,
+          display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}>
           {reason}
         </p>
       )}
@@ -95,10 +117,86 @@ function RecommendationCard({
   );
 }
 
+const PREVIEW_COUNT = 3;
+
+function RecommendationColumn({
+  title,
+  color,
+  items,
+  type,
+  onTickerSelect,
+  onSeeMore,
+  emptyMsg,
+}: {
+  title: string;
+  color: string;
+  items: { ticker: string; name: string; reason?: string; confidence?: number; signals?: string[] }[];
+  type: "buy" | "sell" | "focus";
+  onTickerSelect?: (ticker: string) => void;
+  onSeeMore?: () => void;
+  emptyMsg: string;
+}) {
+  const total = items.length;
+  const visible = items.slice(0, PREVIEW_COUNT);
+  const hidden = Math.max(0, total - PREVIEW_COUNT);
+
+  return (
+    <div>
+      <div style={{
+        fontSize: 13, fontWeight: 700, color,
+        letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10,
+      }}>
+        {title} ({total})
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {visible.length > 0 ? (
+          visible.map((item, i) => (
+            <RecommendationCard key={i} item={item} type={type} onSelect={onTickerSelect} />
+          ))
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12 }}>
+            {emptyMsg}
+          </div>
+        )}
+        {onSeeMore && (hidden > 0 || total > 0) && (
+          <button
+            onClick={onSeeMore}
+            style={{
+              marginTop: 4,
+              background: "transparent",
+              border: `1px dashed ${color}55`,
+              color,
+              fontSize: 12, fontWeight: 600,
+              padding: "10px 12px",
+              borderRadius: 8,
+              cursor: "pointer",
+              transition: "background 0.15s, border-color 0.15s",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = `${color}10`;
+              (e.currentTarget as HTMLButtonElement).style.borderColor = color;
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = `${color}55`;
+            }}
+          >
+            {hidden > 0 ? `+${hidden}개 더 보기 — ETF·주식 탭 →` : `ETF·주식 탭에서 전체 보기 →`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DailySignalSection({
   data,
+  onTickerSelect,
+  onSeeMore,
 }: {
   data: DailySignal;
+  onTickerSelect?: (ticker: string) => void;
+  onSeeMore?: () => void;
 }) {
   const { t, lang } = useT();
 
@@ -182,70 +280,35 @@ export default function DailySignalSection({
         </div>
       )}
 
-      {/* ── Buy / Sell / Focus 3-column grid ── */}
+      {/* ── Buy / Sell / Focus 3-column grid (각 3개 미리보기 + 더보기) ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        {/* Buy Recommendations */}
-        <div>
-          <div style={{
-            fontSize: 13, fontWeight: 700, color: "#10b981",
-            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10,
-          }}>
-            Buy ({data.buy_recommendations.length})
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.buy_recommendations.length > 0 ? (
-              data.buy_recommendations.map((item, i) => (
-                <RecommendationCard key={i} item={item} type="buy" />
-              ))
-            ) : (
-              <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12 }}>
-                No buy signals
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sell Recommendations */}
-        <div>
-          <div style={{
-            fontSize: 13, fontWeight: 700, color: "#ef4444",
-            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10,
-          }}>
-            Sell ({data.sell_recommendations.length})
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.sell_recommendations.length > 0 ? (
-              data.sell_recommendations.map((item, i) => (
-                <RecommendationCard key={i} item={item} type="sell" />
-              ))
-            ) : (
-              <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12 }}>
-                No sell signals
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Focus List */}
-        <div>
-          <div style={{
-            fontSize: 13, fontWeight: 700, color: "#3b82f6",
-            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10,
-          }}>
-            Watch ({data.focus_list.length})
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.focus_list.length > 0 ? (
-              data.focus_list.map((item, i) => (
-                <RecommendationCard key={i} item={item} type="focus" />
-              ))
-            ) : (
-              <div style={{ fontSize: 12, color: "var(--text-muted)", padding: 12 }}>
-                No watch items
-              </div>
-            )}
-          </div>
-        </div>
+        <RecommendationColumn
+          title="Buy"
+          color="#10b981"
+          items={data.buy_recommendations}
+          type="buy"
+          onTickerSelect={onTickerSelect}
+          onSeeMore={onSeeMore}
+          emptyMsg="No buy signals"
+        />
+        <RecommendationColumn
+          title="Sell"
+          color="#ef4444"
+          items={data.sell_recommendations}
+          type="sell"
+          onTickerSelect={onTickerSelect}
+          onSeeMore={onSeeMore}
+          emptyMsg="No sell signals"
+        />
+        <RecommendationColumn
+          title="Watch"
+          color="#3b82f6"
+          items={data.focus_list}
+          type="focus"
+          onTickerSelect={onTickerSelect}
+          onSeeMore={onSeeMore}
+          emptyMsg="No watch items"
+        />
       </div>
 
       {/* ── 시장 뉴스 ── */}
