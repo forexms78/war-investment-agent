@@ -70,10 +70,10 @@ def call_gemini(prompt: str, system: str = "", retries: int = 3, json_mode: bool
     config_kwargs: dict = {"system_instruction": system or None}
     if json_mode:
         config_kwargs["response_mime_type"] = "application/json"
-    # gemini-2.5-flash thinking 모드가 출력 토큰을 잡아먹어 JSON이 잘리는 경우 방어
+    # gemini-2.5-flash thinking 모드 끄기 — SDK 1.10+에서만 지원되는 옵션이라 모든 예외 흡수
     try:
         config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-    except (AttributeError, TypeError):
+    except Exception:
         pass
     config = types.GenerateContentConfig(**config_kwargs)
 
