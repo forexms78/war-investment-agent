@@ -21,6 +21,7 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 | 버전 | 날짜 | 내용 |
 |------|------|------|
+| v5.0 | 2026-05-20 | **데일리 시그널 + 추천 알고리즘 문서화 + KIS 직결 + SDK 업그레이드.** WhaleSignal → DailySignal 전환(슈퍼 투자자·ETF·외국인·뉴스 5가지 신호를 Gemini가 종합), 퀀트 자동매매 전면 제거(매매 함수 4개에 `TRADING_DISABLED` 가드, 관련 백엔드 서비스 모듈 8개 + 프론트 페이지·컴포넌트 11개 삭제 — 6,000줄 정리). KIS Open API 한국 종목(`.KS`/`.KQ`) 직결 — `financial.py` 일봉(30d/3mo) + `etf_signals.py` 1년 일봉(`inquire-daily-itemchartprice` 100건 페이징)로 Yahoo 대비 신선도 ~20분 향상(`yahoo_lag_sec` 1,201초 실측). `google-genai` 1.2 → 2.3 업그레이드(thinking_budget=0으로 응답 잘림 차단, response_mime_type=application/json 강제, timeout 60s, httpx/supabase/pydantic 의존성 도미노 동반 갱신). DailySignalSection UX 개선 — 카드 5→3 미리보기·클릭 시 StockModal·각 컬럼 하단 "+N개 더 보기 → ETF·주식 탭" 점선 버튼. README에 추천 알고리즘 + 슈퍼 투자자 8인 검증 + 신호별 가중치 섹션 추가. `/debug/kis-vs-yahoo` 신선도 비교 엔드포인트, `/admin/refresh-daily-signal` 캐시 즉시 갱신 엔드포인트 추가 |
 | v4.9 | 2026-05-16 | 외국인 매매 v3 — **전용 탭 분리 + 과거 날짜 조회**. 네이버 iframe·integration API 모두 `bizdate` 파라미터를 무시(항상 당일 데이터)로 확인됨 → 과거 데이터는 매일 누적이 유일한 방법. scheduler `refresh_foreign_flow`에 `top_history`(종목 TOP) 누적 머지 로직 추가(15일 cap, 페이로드 절약 위해 ticker/name/value/volume 4필드로 슬림). 응답 스키마 확장: `top_history`, `available_dates`(최신순), `current_date`. dashboard `Tab` 타입에 `"foreign"` 추가, 기존 signal 탭의 ForeignFlowSection 분리해 전용 탭으로 이동, i18n `tab.foreign`(KO "외국인 매매" / EN "Foreign Flow") 사전 추가. `ForeignFlowSection` UI 전면 개편: KOSPI/KOSDAQ pill + 날짜 드롭다운(전체 누적일, 한국어 요일 포맷) + 이전일/다음일 버튼, 시장 합계 카드에 "기준일 YYYY년 M월 D일 (요일)" 명시, 데이터 없는 날짜는 dashed 박스로 "누적되지 않음" 안내, `top_history`/`market_history` 선택 날짜 매칭하여 클라이언트 사이드 렌더링 |
 | v4.8 | 2026-05-16 | 외국인 매매 v2 — **시장 합계 데이터 추가**: 네이버 모바일 `/api/index/{KOSPI\|KOSDAQ}/integration` `dealTrendInfo` 발굴(외국인·기관·개인 당일 순매수 합계, 단위 백만원). `foreign_flow.py` `get_market_deal_trend_today()` 신규. `scheduler.py` `refresh_foreign_flow`에 history 누적 머지 로직 추가 — 매일 같은 bizdate면 update, 다른 bizdate면 append, 최근 30일 cap. 응답 스키마 확장: `market_today` + `market_history` 필드 추가. **프론트 UI 신규**: `components/ForeignFlowSection.tsx` — KOSPI/KOSDAQ pill 토글, 시장 합계 3개 카드(외국인·기관·개인 색상 코딩), 외국인 순매수/순매도 TOP 10 좌우 그리드, 모바일 1열 반응형. 단위 환산 유틸 `fmtMil`: 1조 이상 "조", 1억 이상 "억", 그 이하 "백만". `dashboard/page.tsx` signal 탭에 dynamic import로 끼워넣음(코드 스플리팅 유지). 한국 종목 모달은 yfinance가 `.KS`/`.KQ` 접미사를 요구하므로 이번 sprint에선 클릭 비활성 |
 | v4.7 | 2026-05-15 | 외국인 매매 데이터 신규 — `backend/services/foreign_flow.py` 신규(네이버 금융 iframe 스크래핑 + 한투 KIS Open API 결합), `GET /foreign-flow`(KOSPI/KOSDAQ 외국인 순매수·순매도 종목 TOP 20, 네이버 데이터 기반, DB-Only)와 `GET /foreign-flow/{ticker}`(종목별 외국인·기관·개인 일별 매매 추이, KIS `inquire-investor` TR_ID `FHKST01010900`, 5분 캐시) 두 엔드포인트 추가. 스케줄러는 KST 16:30 + 17:30(UTC 07:30 / 08:30) 두 차례 `refresh_foreign_flow`로 Supabase `api_cache.foreign_flow`에 적재 — 화면은 캐시 read-only. **시도·교체 이력**: 1차 PyKRX로 작성했으나 KRX가 anonymous 호출 차단(`KRX 로그인 실패`)으로 빈 응답 → 2차 네이버 금융 페이지 시도 시 본 페이지가 빈 껍데기여서 `sise_deal_rank_iframe.naver?sosok={01\|02}&investor_gubun=9000&type={buy\|sell}` iframe URL 직접 호출로 정착. requirements `pykrx` 제거 + `beautifulsoup4>=4.12.0` 명시 추가 |
@@ -177,6 +178,85 @@ flowchart LR
 | Bill Ackman | Pershing Square | 행동주의 |
 | George Soros | Soros Fund Mgmt | 글로벌 매크로 |
 | David Tepper | Appaloosa Management | 이벤트 드리븐 |
+
+---
+
+## 추천은 어떻게 만들어지나
+
+매수/매도/Watch 추천은 단일 신호로 만들지 않는다. 슈퍼 투자자 13F 포지션·ETF 기술적 신호·외국인 매매 동향·뉴스 마켓 드라이버·Fed 금리 환경, 다섯 가지 데이터 소스를 6시간 주기 스케줄러가 모아 Gemini 2.5 Flash에 한 번에 던진다. Gemini는 "여러 신호가 동시에 겹치는 종목"을 우선 골라 confidence 0~100 점수와 함께 buy 5개·sell 5개·focus(Watch) 5개를 반환한다.
+
+```mermaid
+flowchart LR
+    A1["슈퍼 투자자 13F<br/>investors.py"] --> G
+    A2["ETF·주식 기술적 신호<br/>RSI · MA · 골든크로스"] --> G
+    A3["외국인 매매 TOP<br/>네이버 + KIS"] --> G
+    A4["마켓 뉴스 드라이버<br/>Google News + Gemini"] --> G
+    A5["Fed 금리 환경<br/>FRED"] --> G
+    G["Gemini 2.5 Flash<br/>여러 신호 겹침 우선"]
+    G --> R1["Buy 5"]
+    G --> R2["Sell 5"]
+    G --> R3["Watch 5"]
+```
+
+### 슈퍼 투자자 8인 — 왜 이 사람들인가
+
+선정 기준은 **SEC 13F 의무 공시 대상 + 시장에서 검증된 트랙 레코드**다. 미국 SEC는 AUM 1억 달러 이상 기관 투자가에게 분기마다 보유 종목 공개를 의무화한다. 8인은 모두 이 13F로 포트폴리오가 공식 추적된다.
+
+| 투자자 | 운용 자산 | 검증된 트랙 레코드 |
+|------|------|------|
+| Warren Buffett | Berkshire ~$300B | 50년 이상 S&P 500 초과 수익 |
+| Cathie Wood | ARK ~$15B | TSLA·NVDA 초기 매수, 5~10배 수익 |
+| Michael Burry | Scion ~$200M | 2008 서브프라임 공매도 ($7억) — 영화 '빅쇼트' 주인공 |
+| Ray Dalio | Bridgewater ~$140B | 세계 최대 헤지펀드, All Weather 포트폴리오 창시자 |
+| Stanley Druckenmiller | Duquesne ~$10B | 1992 영국 파운드 공매도, 30년 연 30%+ 무손실 |
+| Bill Ackman | Pershing Square ~$15B | 2020 코로나 CDS 헤지 ($26억), 행동주의 |
+| George Soros | Soros Fund ~$25B | 1992 영국 파운드화 붕괴 ($10억) |
+| David Tepper | Appaloosa ~$15B | 2009 부실 은행주 매수 ($74억), 이벤트 드리븐 |
+
+샘 알트먼 같은 VC·테크 거물은 의도적으로 빠져있다. 13F는 *공모 시장 주식*만 공시하는데 그는 OpenAI(미상장)·Stripe 같은 VC 투자가 메인이라 공개 시장 추적이 불가능하다. 13F 외 인물을 넣으면 데이터 출처 일관성이 깨지고 검증할 수 없어 제외했다.
+
+13F는 분기 1회·**45일 지연 공시**라는 한계가 있다. 따라서 슈퍼 투자자 신호만으로는 단기 매수 타이밍에 부족하고, 그래서 ETF 기술적 신호(실시간)와 외국인 매매(일 단위)를 함께 본다.
+
+### 5가지 신호와 가중치
+
+각 신호는 Gemini가 받기 전에 백엔드에서 미리 정제된다. confidence 점수는 fallback 응답(Gemini 호출 실패 시) 기준 공식이고, 정상 응답에서는 Gemini가 자체 판단해 매긴다.
+
+| 신호 | 산출 방식 | confidence 기여 |
+|------|----------|:---:|
+| `investor_buy` | 슈퍼 투자자 **2명 이상** 같은 종목 매수 (`len(buyers) >= 2`) | `60 + buyers×8` (cap 95) |
+| `investor_sell` | 슈퍼 투자자 1명 이상 매도 | `55 + sellers×10` (cap 90) |
+| `etf_strong_buy` | RSI ≤ 30 + 52주 35%↓, 또는 골든크로스 직후 | 단독 65~75 |
+| `etf_buy` | RSI 30~45, 상승 추세 진입 | 단독 60~70 |
+| `etf_sell` / `etf_strong_sell` | RSI ≥ 55/75 + 52주 95%↑ + ABCE DANGER 등급 | 매도 카드 가산 |
+| `foreign_buy` / `foreign_sell` | KOSPI/KOSDAQ 외국인 순매수/매도 TOP 5 (KIS 직결) | focus_list 진입↑ |
+| `news_impact` | 마켓 드라이버 뉴스 3개 중 해당 종목 직접 언급 | 매크로 컨텍스트 |
+
+**1명 단독 매수는 추천 후보에서 탈락한다**. 슈퍼 투자자 시그널의 노이즈 차단 장치다. 2명부터 풀에 진입하고, 이후 매수자 수에 비례해 confidence가 가산된다.
+
+```mermaid
+xychart-beta
+    title "신호 갯수별 confidence (실측 패턴)"
+    x-axis ["1개 신호", "2개 겹침", "3개 이상"]
+    y-axis "Confidence" 0 --> 100
+    bar [65, 87, 93]
+```
+
+### 종목 universe
+
+추천 풀은 **슈퍼 투자자 8인 포트폴리오 + ETF 시그널 분석 대상 약 30종 + 외국인 매매 TOP 종목**의 합집합이다. 이 풀 밖 종목은 추천되지 않는다.
+
+### Meta 예시 — 실제 작동
+
+```json
+{
+  "ticker": "META",
+  "reason": "슈퍼 투자자들의 집중 매수와 함께 RSI 24.9로 기술적 과매도 구간에 진입",
+  "signals": ["investor_buy", "etf_strong_buy"],
+  "confidence": 90
+}
+```
+
+`investor_buy`(Druckenmiller·Soros·Tepper 3명이 매수) + `etf_strong_buy`(RSI 24.9 과매도) 두 신호가 동시에 잡혀 confidence 90을 받았다. 한쪽만 있었다면 65~75에 머물렀을 종목이다.
 
 ---
 
