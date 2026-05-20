@@ -32,6 +32,69 @@ _PERIOD_CONFIG = {
 _CHART_POINTS = {"1d": 78, "7d": 80, "30d": 30, "3mo": 90, "1y": 52}
 
 
+def _is_kr_ticker(ticker: str) -> bool:
+    """`.KS`(KOSPI) / `.KQ`(KOSDAQ) 접미사로 한국 종목 판별"""
+    return ticker.endswith(".KS") or ticker.endswith(".KQ")
+
+
+def _to_kr_code(ticker: str) -> str:
+    """`005930.KS` → `005930` (KIS는 접미사 없는 6자리 코드 사용)"""
+    return ticker.split(".")[0]
+
+
+def _fetch_via_kis_kr(ticker: str, period: str = "30d") -> dict | None:
+    """한국 종목 일봉 KIS 직결. 분봉/주봉(`1d`/`7d`/`1y`)은 None 반환 → Yahoo 폴백."""
+    cfg = _PERIOD_CONFIG.get(period, _PERIOD_CONFIG["30d"])
+    if cfg.get("rest_interval") != "1d":
+        return None  # 분봉/주봉은 KIS 별도 API라 일단 미지원
+
+    try:
+        from backend.services.kis_trader import get_daily_data, get_price_and_fundamentals
+        code = _to_kr_code(ticker)
+        days = 90 if period == "3mo" else 30
+        daily = get_daily_data(code, days=days)
+        if not daily:
+            return None
+        # KIS는 최신순 반환 → 오래된순으로 정렬
+        daily = list(reversed(daily))
+        closes = [d["close"] for d in daily]
+        if len(closes) < 2:
+            return None
+
+        current = closes[-1]
+        prev = closes[0]
+        change_pct = round((current - prev) / prev * 100, 2)
+        changes = [(closes[i] - closes[i-1]) / closes[i-1] * 100 for i in range(1, len(closes))]
+
+        max_pts = _CHART_POINTS.get(period, 30)
+        step = max(1, len(closes) // max_pts)
+        chart = []
+        for i in range(0, len(closes), step):
+            date_raw = daily[i].get("date", "")
+            label = f"{date_raw[4:6]}/{date_raw[6:8]}" if len(date_raw) == 8 else ""
+            chart.append({"date": label, "price": round(closes[i], 2)})
+
+        fund = get_price_and_fundamentals(code)
+        return {
+            "current_price":  round(current, 2),
+            "prev_price":     round(prev, 2),
+            "change_30d_pct": change_pct,
+            "change_1d_pct":  round((closes[-1] - closes[-2]) / closes[-2] * 100, 2) if len(closes) > 1 else 0,
+            "volatility":     round(statistics.stdev(changes), 2) if len(changes) > 1 else 0,
+            "chart":          chart,
+            "name":           None,  # KIS daily-price에는 종목명 없음 → _fetch_fundamentals에서 보강
+            "week52_high":    fund.get("w52_high"),
+            "week52_low":     fund.get("w52_low"),
+            "day_high":       None,
+            "day_low":        None,
+            "volume":         int(daily[-1].get("volume", 0)) if daily else None,
+            "prev_close":     round(closes[-2], 2) if len(closes) > 1 else None,
+            "exchange":       "KOSPI" if ticker.endswith(".KS") else "KOSDAQ",
+        }
+    except Exception:
+        return None
+
+
 def _fetch_via_rest(ticker: str, period: str = "30d") -> dict | None:
     """Yahoo Finance v8 chart REST API — 한국 IP 우회용. meta에서 기본 지표 추출."""
     try:
@@ -116,6 +179,18 @@ def _fetch_fundamentals(ticker: str) -> dict:
             "description":         (info.get("longBusinessSummary") or "")[:500],
             "name":                info.get("longName") or info.get("shortName") or ticker,
         }
+        # 한국 종목: yfinance 부족분(PER/PBR/52주)을 KIS로 보강
+        if _is_kr_ticker(ticker):
+            try:
+                from backend.services.kis_trader import get_price_and_fundamentals
+                kis_fund = get_price_and_fundamentals(_to_kr_code(ticker))
+                if not result.get("trailing_pe"):    result["trailing_pe"]   = kis_fund.get("per")
+                if not result.get("price_to_book"):  result["price_to_book"] = kis_fund.get("pbr")
+                if not result.get("week52_high"):    result["week52_high"]   = kis_fund.get("w52_high")
+                if not result.get("week52_low"):     result["week52_low"]    = kis_fund.get("w52_low")
+            except Exception:
+                pass
+
         db_set(cache_key, result)
         return result
     except Exception:
@@ -131,8 +206,11 @@ def get_stock_data(ticker: str, period: str = "30d") -> dict:
 
     cfg = _PERIOD_CONFIG.get(period, _PERIOD_CONFIG["30d"])
 
-    # v8 REST로 차트 + 기본 지표
-    rest_data = _fetch_via_rest(ticker, period)
+    # 한국 종목 일봉(30d/3mo)은 KIS 직결 우선, 실패 시 Yahoo REST 폴백
+    if _is_kr_ticker(ticker):
+        rest_data = _fetch_via_kis_kr(ticker, period) or _fetch_via_rest(ticker, period)
+    else:
+        rest_data = _fetch_via_rest(ticker, period)
 
     # 펀더멘털 (Supabase 캐시 24h)
     fund = _fetch_fundamentals(ticker)

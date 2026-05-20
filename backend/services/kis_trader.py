@@ -80,8 +80,59 @@ def get_price_and_fundamentals(ticker: str) -> dict:
     }
 
 
+def get_long_daily_data(ticker: str, days: int = 260) -> list[dict]:
+    """장기 일봉 OHLCV (오래된순) — KIS inquire-daily-itemchartprice 100건 페이징.
+
+    RSI/MA200 등 200영업일 이상 필요한 지표 계산용. 일반 시세 조회는 `get_daily_data` 사용.
+    100건 단위로 과거로 거슬러 올라가며 페이징 후 중복 제거·정렬.
+    """
+    today = datetime.now(_KST)
+    end = today
+    collected: dict[str, dict] = {}  # date → row (중복 제거)
+
+    while len(collected) < days:
+        start = end - timedelta(days=140)  # 100영업일 약 140캘린더일
+        res = requests.get(
+            f"{BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice",
+            headers=_headers("FHKST03010100"),
+            params={
+                "fid_cond_mrkt_div_code": "J",
+                "fid_input_iscd":         ticker,
+                "fid_input_date_1":       start.strftime("%Y%m%d"),
+                "fid_input_date_2":       end.strftime("%Y%m%d"),
+                "fid_period_div_code":    "D",
+                "fid_org_adj_prc":        "1",
+            },
+            timeout=10,
+        )
+        res.raise_for_status()
+        output = res.json().get("output2", []) or []
+        if not output:
+            break
+        added = 0
+        for r in output:
+            date_raw = r.get("stck_bsop_date") or ""
+            close = r.get("stck_clpr")
+            if not (date_raw and close) or date_raw in collected:
+                continue
+            collected[date_raw] = {
+                "date":   date_raw,
+                "open":   float(r.get("stck_oprc") or 0),
+                "high":   float(r.get("stck_hgpr") or 0),
+                "low":    float(r.get("stck_lwpr") or 0),
+                "close":  float(close),
+                "volume": float(r.get("acml_vol") or 0),
+            }
+            added += 1
+        if added == 0:
+            break
+        end = start - timedelta(days=1)
+
+    return sorted(collected.values(), key=lambda d: d["date"])[-days:]
+
+
 def get_daily_data(ticker: str, days: int = 40) -> list[dict]:
-    """일별 종가 + 거래량 리스트 (최신순) — KIS"""
+    """일별 종가·거래량·날짜 리스트 (최신순) — KIS"""
     end = datetime.now(_KST).strftime("%Y%m%d")
     start = (datetime.now() - timedelta(days=days + 10)).strftime("%Y%m%d")
     res = requests.get(
@@ -103,8 +154,13 @@ def get_daily_data(ticker: str, days: int = 40) -> list[dict]:
     for r in output:
         close = r.get("stck_clpr")
         vol = r.get("acml_vol")
+        date_raw = r.get("stck_bsop_date") or ""
         if close and vol:
-            result.append({"close": float(close), "volume": float(vol)})
+            result.append({
+                "close":  float(close),
+                "volume": float(vol),
+                "date":   date_raw,
+            })
     return result[:days]
 
 

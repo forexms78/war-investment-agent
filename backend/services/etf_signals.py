@@ -104,7 +104,40 @@ SIGNAL_ORDER = {"STRONG_BUY": 0, "BUY": 1, "HOLD": 2, "SELL": 3, "STRONG_SELL": 
 # Yahoo Finance REST 1년 종가
 # ─────────────────────────────────────────────
 
+def _is_kr_ticker(ticker: str) -> bool:
+    return ticker.endswith(".KS") or ticker.endswith(".KQ")
+
+
+def _fetch_history_kis(ticker: str) -> dict | None:
+    """한국 ETF/주식 1년 일봉 — KIS 직결 (inquire-daily-itemchartprice 페이징)"""
+    try:
+        from backend.services.kis_trader import get_long_daily_data, get_price_and_fundamentals
+        code = ticker.split(".")[0]
+        rows = get_long_daily_data(code, days=260)
+        closes = [r["close"] for r in rows]
+        if len(closes) < 50:
+            return None
+        fund = {}
+        try:
+            fund = get_price_and_fundamentals(code)
+        except Exception:
+            pass
+        return {
+            "closes":      closes,
+            "currency":    "KRW",
+            "week52_high": fund.get("w52_high") or max(closes),
+            "week52_low":  fund.get("w52_low")  or min(closes),
+        }
+    except Exception:
+        return None
+
+
 def _fetch_history(ticker: str) -> dict | None:
+    # 한국 종목: KIS 직결 우선, 실패 시 Yahoo 폴백
+    if _is_kr_ticker(ticker):
+        kis = _fetch_history_kis(ticker)
+        if kis:
+            return kis
     try:
         url = (
             f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}"
