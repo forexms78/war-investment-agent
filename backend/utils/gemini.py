@@ -9,7 +9,7 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 _client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY"),
-    http_options=types.HttpOptions(timeout=25000),  # 25초 타임아웃
+    http_options=types.HttpOptions(timeout=60000),  # 60초 — 긴 JSON 응답 잘림 방지
 )
 
 MOCK_MODE = os.getenv("MOCK_MODE", "false").lower() == "true"
@@ -57,7 +57,7 @@ def _parse_retry_after(err_msg: str) -> float:
     return float(match.group(1)) + 2.0 if match else 30.0
 
 
-def call_gemini(prompt: str, system: str = "", retries: int = 3) -> str:
+def call_gemini(prompt: str, system: str = "", retries: int = 3, json_mode: bool = False) -> str:
     global _last_call_time, _call_count
 
     if MOCK_MODE:
@@ -67,9 +67,15 @@ def call_gemini(prompt: str, system: str = "", retries: int = 3) -> str:
             return _MOCK_RESPONSES["analyzer"]
         return _MOCK_RESPONSES["report"]
 
-    config = types.GenerateContentConfig(
-        system_instruction=system or None,
-    )
+    config_kwargs: dict = {"system_instruction": system or None}
+    if json_mode:
+        config_kwargs["response_mime_type"] = "application/json"
+    # gemini-2.5-flash thinking 모드가 출력 토큰을 잡아먹어 JSON이 잘리는 경우 방어
+    try:
+        config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+    except (AttributeError, TypeError):
+        pass
+    config = types.GenerateContentConfig(**config_kwargs)
 
     for attempt in range(retries):
         elapsed = time.time() - _last_call_time

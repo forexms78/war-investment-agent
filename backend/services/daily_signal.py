@@ -24,37 +24,45 @@ async def get_daily_signal(
     foreign_flow_data: dict,
     market_drivers: list[dict],
     fed_rate: float,
+    force: bool = False,
 ) -> dict:
+    """force=True면 인메모리·DB 캐시를 모두 우회하고 Gemini 강제 호출.
+    스케줄러 잡(refresh_daily_signal)와 admin/refresh-daily-signal에서 사용."""
     global _signal_cache
     now = time.time()
-    if _signal_cache and now - _signal_cache[1] < SIGNAL_TTL:
-        return _signal_cache[0]
-    db_cached = db_get(DB_CACHE_KEY, SIGNAL_TTL)
-    if db_cached:
-        _signal_cache = (db_cached, now)
-        return db_cached
+    if not force:
+        if _signal_cache and now - _signal_cache[1] < SIGNAL_TTL:
+            return _signal_cache[0]
+        db_cached = db_get(DB_CACHE_KEY, SIGNAL_TTL)
+        if db_cached:
+            _signal_cache = (db_cached, now)
+            return db_cached
 
     prompt = _build_prompt(buy_recs, sell_recs, etf_signal_data, foreign_flow_data, market_drivers, fed_rate)
 
+    gemini_error: Optional[str] = None
     try:
-        raw = call_gemini(prompt, SYSTEM)
+        raw = call_gemini(prompt, SYSTEM, json_mode=True)
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         parsed = json.loads(match.group() if match else raw)
 
         result = {
-            "headline": parsed.get("headline", "오늘의 데일리 시그널을 준비 중입니다."),
-            "sentiment": parsed.get("sentiment", "Neutral"),
-            "sentiment_score": parsed.get("sentiment_score", 50),
-            "market_summary": parsed.get("market_summary", ""),
-            "buy_recommendations": parsed.get("buy_recommendations", []),
+            "headline":             parsed.get("headline", "오늘의 데일리 시그널을 준비 중입니다."),
+            "sentiment":            parsed.get("sentiment", "Neutral"),
+            "sentiment_score":      parsed.get("sentiment_score", 50),
+            "market_summary":       parsed.get("market_summary", ""),
+            "buy_recommendations":  parsed.get("buy_recommendations", []),
             "sell_recommendations": parsed.get("sell_recommendations", []),
-            "focus_list": parsed.get("focus_list", []),
-            "market_drivers": parsed.get("market_drivers", []),
-            "fed_rate": fed_rate,
-            "updated_at": datetime.now().isoformat(),
+            "focus_list":           parsed.get("focus_list", []),
+            "market_drivers":       parsed.get("market_drivers", []),
+            "fed_rate":             fed_rate,
+            "updated_at":           datetime.now().isoformat(),
         }
-    except Exception:
+    except Exception as e:
+        gemini_error = f"{type(e).__name__}: {str(e)[:200]}"
+        print(f"[daily_signal] Gemini 호출 실패 → fallback: {gemini_error}")
         result = _fallback(buy_recs, sell_recs, etf_signal_data, fed_rate)
+        result["_gemini_error"] = gemini_error  # 디버깅용 (응답에 노출되어도 안전)
 
     _signal_cache = (result, time.time())
     db_set(DB_CACHE_KEY, result)

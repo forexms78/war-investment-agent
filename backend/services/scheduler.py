@@ -355,6 +355,7 @@ async def refresh_daily_signal():
         signal = await get_daily_signal(
             buy_recs, sell_recs,
             etf_data, foreign_data, market_drivers, fed_rate,
+            force=True,  # 스케줄러 잡은 항상 캐시 우회 → 새 Gemini 호출
         )
         result = {**signal, "market_news": market_news, "asia_news": asia_news}
         await _run_sync(db_set, "daily_signal", result)
