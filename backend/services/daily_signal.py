@@ -173,30 +173,55 @@ def _fallback(
     etf_signal_data: dict,
     fed_rate: float,
 ) -> dict:
-    top_buys = buy_recs[:5] if buy_recs else []
-    top_sells = sell_recs[:5] if sell_recs else []
+    # investors.get_buy_recommendations 원본 구조({ticker,name,buyers[],weight_avg})를
+    # 프론트 DailySignalRecommendation 스키마로 정규화
+    def _norm_buy(r: dict) -> dict:
+        buyers = r.get("buyers", []) or []
+        weight = r.get("weight_avg", 0)
+        return {
+            "ticker":     r["ticker"],
+            "name":       r["name"],
+            "reason":     f"슈퍼투자자 {len(buyers)}명 매수: {', '.join(buyers[:3])} (평균 비중 {weight}%)",
+            "confidence": min(95, 60 + len(buyers) * 8),
+            "signals":    ["investor_buy"],
+        }
+
+    def _norm_sell(r: dict) -> dict:
+        sellers = r.get("sellers", []) or []
+        return {
+            "ticker":     r["ticker"],
+            "name":       r["name"],
+            "reason":     f"슈퍼투자자 {len(sellers)}명 매도: {', '.join(sellers[:3])}",
+            "confidence": min(90, 55 + len(sellers) * 10),
+            "signals":    ["investor_sell"],
+        }
+
+    top_buys = [_norm_buy(r) for r in (buy_recs or [])[:5]]
+    top_sells = [_norm_sell(r) for r in (sell_recs or [])[:5]]
+
     focus = []
     for key in ("etfs", "us_stocks", "kr_stocks"):
         for item in etf_signal_data.get(key, []):
             if item.get("signal") == "STRONG_BUY" and len(focus) < 5:
                 focus.append({
-                    "ticker": item["ticker"],
-                    "name": item["name"],
-                    "reason": f"기술적 STRONG_BUY 신호 (RSI {item.get('rsi', '?')})",
-                    "signals": ["etf_strong_buy"],
+                    "ticker":     item["ticker"],
+                    "name":       item["name"],
+                    "reason":     f"기술적 STRONG_BUY 신호 (RSI {item.get('rsi', '?')})",
+                    "confidence": 75,
+                    "signals":    ["etf_strong_buy"],
                 })
     top_buy_tickers = [r["ticker"] for r in top_buys]
     focus = [f for f in focus if f["ticker"] not in top_buy_tickers][:5]
 
     return {
-        "headline": f"Fed 금리 {fed_rate}% — {len(top_buys)}개 매수 추천, {len(top_sells)}개 매도 검토",
-        "sentiment": "Neutral",
+        "headline":        f"Fed 금리 {fed_rate}% — {len(top_buys)}개 매수 추천, {len(top_sells)}개 매도 검토",
+        "sentiment":       "Neutral",
         "sentiment_score": 50,
-        "market_summary": f"현재 Fed 기준금리 {fed_rate}% 환경입니다. 슈퍼 투자자들의 매수/매도 동향과 기술적 신호를 종합한 결과입니다.",
-        "buy_recommendations": top_buys,
+        "market_summary":  f"현재 Fed 기준금리 {fed_rate}% 환경입니다. 슈퍼 투자자들의 매수/매도 동향과 기술적 신호를 종합한 결과입니다.",
+        "buy_recommendations":  top_buys,
         "sell_recommendations": top_sells,
-        "focus_list": focus,
-        "market_drivers": [],
-        "fed_rate": fed_rate,
-        "updated_at": datetime.now().isoformat(),
+        "focus_list":      focus,
+        "market_drivers":  [],
+        "fed_rate":        fed_rate,
+        "updated_at":      datetime.now().isoformat(),
     }

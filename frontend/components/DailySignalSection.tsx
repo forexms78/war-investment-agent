@@ -47,9 +47,12 @@ function RecommendationCard({
   item,
   type,
 }: {
-  item: { ticker: string; name: string; reason: string; confidence: number; signals: string[] };
+  item: { ticker: string; name: string; reason?: string; confidence?: number; signals?: string[] };
   type: "buy" | "sell" | "focus";
 }) {
+  const signals = item.signals || [];
+  const reason = item.reason || "";
+  const confidence = item.confidence ?? null;
   const borderColor = type === "buy" ? "#10b981" : type === "sell" ? "#ef4444" : "#3b82f6";
   const label = type === "buy" ? "Buy" : type === "sell" ? "Sell" : "Watch";
 
@@ -73,16 +76,20 @@ function RecommendationCard({
             background: `${borderColor}18`, color: borderColor,
             border: `1px solid ${borderColor}44`,
           }}>{label}</span>
-          <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>
-            {item.confidence}%
-          </span>
+          {confidence !== null && (
+            <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>
+              {confidence}%
+            </span>
+          )}
         </div>
       </div>
-      <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 8 }}>
-        {item.reason}
-      </p>
+      {reason && (
+        <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5, marginBottom: 8 }}>
+          {reason}
+        </p>
+      )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-        {item.signals.map(s => <SignalTag key={s} signal={s} />)}
+        {signals.map(s => <SignalTag key={s} signal={s} />)}
       </div>
     </div>
   );

@@ -451,6 +451,48 @@ async def admin_refresh_etf_signals(
     }
 
 
+@app.post("/admin/refresh-daily-signal")
+async def admin_refresh_daily_signal(
+    x_admin_token: str | None = Header(None, alias="X-Admin-Token"),
+):
+    """수동 데일리 시그널 강제 갱신 — 6시간 주기 잡 사이에 캐시 즉시 재빌드.
+
+    인증은 /admin/refresh-etf-signals와 동일 규칙(ADMIN_TOKEN 또는 60초 쿨다운).
+    """
+    global _LAST_ADMIN_REFRESH_AT
+
+    expected = os.getenv("ADMIN_TOKEN")
+    if expected:
+        if x_admin_token != expected:
+            raise HTTPException(status_code=401, detail="invalid admin token")
+    else:
+        now = time.time()
+        elapsed = now - _LAST_ADMIN_REFRESH_AT
+        if elapsed < _ADMIN_REFRESH_COOLDOWN_SEC:
+            wait = int(_ADMIN_REFRESH_COOLDOWN_SEC - elapsed)
+            raise HTTPException(status_code=429, detail=f"cooldown {wait}s remaining")
+        _LAST_ADMIN_REFRESH_AT = now
+
+    # daily_signal 모듈 인메모리 캐시도 무효화 (DB 캐시는 refresh_daily_signal이 덮어씀)
+    from backend.services import daily_signal as ds
+    ds._signal_cache = None
+
+    from backend.services.scheduler import refresh_daily_signal
+    await refresh_daily_signal()
+
+    cached = await _run(db_get_stale, "daily_signal")
+    return {
+        "ok": True,
+        "updated_at": cached.get("updated_at") if cached else None,
+        "headline":   cached.get("headline")   if cached else None,
+        "count": {
+            "buy_recommendations":  len(cached.get("buy_recommendations", []))  if cached else 0,
+            "sell_recommendations": len(cached.get("sell_recommendations", [])) if cached else 0,
+            "focus_list":           len(cached.get("focus_list", []))           if cached else 0,
+        },
+    }
+
+
 # ─────────────────────────────────────────────
 # 한국 금리 (Korea Rates)
 # ─────────────────────────────────────────────

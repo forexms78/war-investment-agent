@@ -170,9 +170,9 @@ export interface MoneyFlowAsset {
 export interface DailySignalRecommendation {
   ticker: string;
   name: string;
-  reason: string;
-  confidence: number;
-  signals: string[];
+  reason?: string;
+  confidence?: number;
+  signals?: string[];
 }
 
 export interface DailySignalDriver {
