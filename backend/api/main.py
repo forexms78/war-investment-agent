@@ -96,6 +96,83 @@ async def debug_kis():
     return result
 
 
+@app.get("/debug/kis-vs-yahoo")
+async def debug_kis_vs_yahoo(ticker: str = "005930.KS"):
+    """동일 시점 KIS vs Yahoo 시세 비교 — 신선도·지연·가격 차이 측정.
+
+    예: /debug/kis-vs-yahoo?ticker=005930.KS  (삼성전자)
+        /debug/kis-vs-yahoo?ticker=000660.KS  (SK하이닉스)
+    """
+    import time as _t
+    import httpx
+    from datetime import datetime, timezone
+    from backend.services.kis_trader import get_price_and_fundamentals
+
+    code = ticker.split(".")[0]
+
+    # KIS 호출
+    t0 = _t.time()
+    try:
+        kis_data = await _run(get_price_and_fundamentals, code)
+        kis_block = {
+            "price":      kis_data.get("current_price"),
+            "elapsed_ms": round((_t.time() - t0) * 1000),
+            "per":        kis_data.get("per"),
+            "pbr":        kis_data.get("pbr"),
+            "error":      None,
+        }
+    except Exception as e:
+        kis_block = {"price": None, "elapsed_ms": round((_t.time() - t0) * 1000), "error": f"{type(e).__name__}: {e}"}
+
+    # Yahoo 호출 (1m 간격, 1일 범위 — 가장 신선한 데이터)
+    t1 = _t.time()
+    yahoo_block: dict = {"elapsed_ms": None}
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            data = r.json()["chart"]["result"][0]
+            meta = data.get("meta", {})
+            market_ts = meta.get("regularMarketTime")
+            yahoo_block = {
+                "price":            meta.get("regularMarketPrice"),
+                "market_time_utc":  datetime.fromtimestamp(market_ts, tz=timezone.utc).isoformat() if market_ts else None,
+                "delay_status":     meta.get("marketState"),  # REGULAR / PRE / POST / CLOSED
+                "elapsed_ms":       round((_t.time() - t1) * 1000),
+                "currency":         meta.get("currency"),
+                "exchange":         meta.get("fullExchangeName"),
+                "error":            None,
+            }
+    except Exception as e:
+        yahoo_block["error"] = f"{type(e).__name__}: {e}"
+        yahoo_block["elapsed_ms"] = round((_t.time() - t1) * 1000)
+
+    # 가격 차이
+    price_diff_pct = None
+    if kis_block.get("price") and yahoo_block.get("price"):
+        price_diff_pct = round((kis_block["price"] - yahoo_block["price"]) / yahoo_block["price"] * 100, 4)
+
+    # Yahoo 가격이 몇 초 전 데이터인지
+    yahoo_lag_sec = None
+    if yahoo_block.get("market_time_utc"):
+        try:
+            mt = datetime.fromisoformat(yahoo_block["market_time_utc"])
+            yahoo_lag_sec = round((datetime.now(timezone.utc) - mt).total_seconds())
+        except Exception:
+            pass
+
+    return {
+        "ticker":         ticker,
+        "called_at_utc":  datetime.now(timezone.utc).isoformat(),
+        "kis":            kis_block,
+        "yahoo":          yahoo_block,
+        "yahoo_lag_sec":  yahoo_lag_sec,
+        "price_diff_pct": price_diff_pct,
+    }
+
+
 @app.get("/debug/gemini")
 async def debug_gemini():
     """Gemini 직접 호출 테스트 — 에러 메시지 노출"""
