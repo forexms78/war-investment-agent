@@ -3,7 +3,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.investors import get_investor
@@ -11,13 +11,10 @@ from backend.services.news import fetch_investor_news, fetch_stock_news
 from backend.services.financial import get_stock_data, get_multiple_stocks_parallel
 from backend.services.coins import get_coin_detail
 from backend.services.db_cache import db_get_stale, db_set
-from backend.services.quant_analyzer import analyze as quant_analyze, calculate_metrics, calculate_signal
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from backend.services.scheduler import create_scheduler, warm_all_caches
-    from backend.services import ws_manager
-    ws_manager.set_loop(asyncio.get_event_loop())
     scheduler = create_scheduler()
     scheduler.start()
     asyncio.create_task(warm_all_caches())
@@ -433,17 +430,27 @@ async def foreign_flow_by_ticker(ticker: str):
 
 
 # ─────────────────────────────────────────────
-# 고래 신호 (Whale Signal)
+# 데일리 시그널 (Daily Signal)
 # ─────────────────────────────────────────────
 
-@app.get("/whale-signal")
-async def whale_signal():
-    """현재 시장 상황 종합 분석 (DB-Only — 스케줄러 6시간 주기 Gemini 분석)"""
-    cached = await _run(db_get_stale, "whale_signal_full")
+@app.get("/daily-signal")
+async def daily_signal():
+    """데일리 시그널 — 슈퍼 Investor + ETF 신호 + 외국인 동향 + AI 뉴스 종합 (DB-Only, 스케줄러 6시간 주기 Gemini)"""
+    cached = await _run(db_get_stale, "daily_signal")
     if cached:
         return cached
-    return {"signals": [], "market_news": [], "asia_news": []}
-
+    return {
+        "headline": "",
+        "sentiment": "Neutral",
+        "sentiment_score": 50,
+        "market_summary": "",
+        "buy_recommendations": [],
+        "sell_recommendations": [],
+        "focus_list": [],
+        "market_drivers": [],
+        "fed_rate": None,
+        "updated_at": None,
+    }
 
 # ─────────────────────────────────────────────
 # 오늘의 투자포인트
@@ -534,413 +541,3 @@ async def today_picks():
         "news": [],
         "updated_at": None,
     }
-
-
-# ── Quant: 종목 ────────────────────────────────────────────────────────────────
-from backend.services.db_cache import _get_client as _sb
-
-@app.post("/quant/stocks")
-async def add_quant_stock(body: dict):
-    ticker = body.get("ticker", "").upper()
-    market = body.get("market", "US")
-    name = body.get("name", ticker)
-    if not ticker:
-        return {"error": "ticker 필수"}
-    data = {"ticker": ticker, "market": market, "name": name}
-    result = _sb().table("quant_stocks").upsert(data, on_conflict="ticker").execute()
-    return result.data[0] if result.data else {}
-
-@app.get("/quant/stocks")
-async def list_quant_stocks():
-    result = _sb().table("quant_stocks").select("*").order("added_at", desc=True).execute()
-    return result.data or []
-
-@app.get("/quant/stocks/{ticker}")
-async def get_quant_stock(ticker: str):
-    result = _sb().table("quant_stocks").select("*").eq("ticker", ticker.upper()).execute()
-    return result.data[0] if result.data else {}
-
-# ── Quant: 분석 ────────────────────────────────────────────────────────────────
-@app.post("/quant/analyze")
-async def quant_analyze_text(body: dict):
-    text = body.get("text", "")
-    ticker = body.get("ticker", "")
-    target_pe = body.get("target_pe", 30)
-    if not text:
-        return {"error": "text 필수"}
-
-    result = await _run(quant_analyze, text, target_pe)
-    if result.get("error"):
-        return result
-
-    resolved_ticker = (result.get("ticker") or ticker).upper()
-    if resolved_ticker:
-        _sb().table("quant_stocks").upsert({
-            "ticker": resolved_ticker,
-            "market": result.get("market", "US"),
-            "name": result.get("name", resolved_ticker),
-            "current_price": result.get("current_price"),
-            "forward_eps": result.get("forward_eps"),
-            "bps": result.get("bps"),
-            "eps_growth_rate": result.get("eps_growth_rate"),
-            "target_pe": target_pe,
-            "overhang_note": result.get("overhang_note"),
-        }, on_conflict="ticker").execute()
-
-        stock = _sb().table("quant_stocks").select("id").eq("ticker", resolved_ticker).execute()
-        if stock.data:
-            _sb().table("journal_entries").insert({
-                "stock_id": stock.data[0]["id"],
-                "action": "note",
-                "price": result.get("current_price"),
-                "analysis_text": text,
-                "forward_pe": result.get("forward_pe"),
-                "fair_value_pe": result.get("fair_value_pe"),
-                "fair_value_graham": result.get("fair_value_graham"),
-                "fair_value_peg": result.get("fair_value_peg"),
-                "signal": result.get("signal"),
-            }).execute()
-
-    return result
-
-# ── Quant: 일지 ────────────────────────────────────────────────────────────────
-@app.get("/quant/journal/{ticker}")
-async def get_journal(ticker: str):
-    stock = _sb().table("quant_stocks").select("id").eq("ticker", ticker.upper()).execute()
-    if not stock.data:
-        return []
-    entries = _sb().table("journal_entries")\
-        .select("*")\
-        .eq("stock_id", stock.data[0]["id"])\
-        .order("created_at", desc=True)\
-        .execute()
-    return entries.data or []
-
-@app.post("/quant/journal")
-async def add_journal(body: dict):
-    ticker = body.get("ticker", "").upper()
-    stock = _sb().table("quant_stocks").select("id").eq("ticker", ticker).execute()
-    if not stock.data:
-        return {"error": "종목을 먼저 추가하세요"}
-    data = {
-        "stock_id": stock.data[0]["id"],
-        "action": body.get("action", "note"),
-        "price": body.get("price"),
-        "quantity": body.get("quantity"),
-        "analysis_text": body.get("analysis_text", ""),
-    }
-    result = _sb().table("journal_entries").insert(data).execute()
-    return result.data[0] if result.data else {}
-
-# ── AutoTrade: 상태·이력·시그널 ────────────────────────────────────────────────
-from datetime import datetime as _dt
-
-@app.get("/autotrade/status")
-async def autotrade_status():
-    from zoneinfo import ZoneInfo
-    today_kst = _dt.now(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d")
-
-    # 체결 이력은 DB에서 독립 조회 (KIS API 실패와 무관)
-    try:
-        trades_today = _sb().table("auto_trades")\
-            .select("*")\
-            .gte("executed_at", today_kst)\
-            .execute().data or []
-    except Exception:
-        trades_today = []
-
-    # 보유 종목 조회 — 실패해도 system_on은 True (스케줄러는 별도 프로세스)
-    holdings = []
-    holdings_error = None
-    try:
-        from backend.services.kis_trader import get_holdings as kis_holdings
-        holdings = await _run(kis_holdings)
-    except Exception as e:
-        holdings_error = str(e)
-        print(f"[status] 보유종목 조회 실패: {e}")
-
-    total_invested = sum(h["current_price"] * h["quantity"] for h in holdings)
-    total_pnl = sum((h["current_price"] - h["avg_price"]) * h["quantity"] for h in holdings)
-    return {
-        "system_on": True,
-        "trades_today": len(trades_today),
-        "total_invested": round(total_invested),
-        "total_pnl_pct": round(total_pnl / total_invested * 100, 2) if total_invested else 0,
-        "holdings": holdings,
-        **({"holdings_error": holdings_error} if holdings_error else {}),
-    }
-
-@app.get("/autotrade/account")
-async def autotrade_account():
-    """계좌 잔고 상세 — 예수금·총평가·매입금액·평가손익·수익률"""
-    try:
-        from backend.services.kis_trader import get_account_summary
-        return await _run(get_account_summary)
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.post("/autotrade/prescan")
-async def trigger_prescan():
-    """수동 전종목 프리스캔 트리거 — 백그라운드 실행. 1~3분 후 /autotrade/signals로 갱신 확인.
-    yfinance 600종목 다운로드가 Render proxy timeout(100s) 초과하므로 fire-and-forget."""
-    from backend.services.market_scanner import prescan_golden_cross
-    import asyncio
-
-    async def _bg():
-        try:
-            await _run(prescan_golden_cross)
-        except Exception as e:
-            print(f"[prescan bg] error: {e}")
-
-    asyncio.create_task(_bg())
-    return {"started": True, "message": "프리스캔 백그라운드 시작 — 1~3분 후 /autotrade/signals 확인"}
-
-
-@app.get("/autotrade/trades")
-async def autotrade_trades():
-    result = _sb().table("auto_trades")\
-        .select("*")\
-        .order("executed_at", desc=True)\
-        .limit(50)\
-        .execute()
-    return result.data or []
-
-@app.get("/autotrade/signals")
-async def autotrade_signals():
-    from backend.services.quant_scheduler import get_universe_signals
-    return await _run(get_universe_signals)
-
-
-@app.get("/autotrade/_debug/universe")
-async def autotrade_debug_universe():
-    """Render 환경에서 universe 빌드 경로별 상태 확인 — fdr·정적 JSON·Redis·yfinance."""
-    import socket
-    info: dict = {"hostname": socket.gethostname()}
-
-    # 1. fdr 호출 시도
-    try:
-        import FinanceDataReader as fdr
-        info["fdr_version"] = getattr(fdr, "__version__", "?")
-        try:
-            df = fdr.StockListing("KOSPI")
-            info["fdr_kospi_rows"] = int(len(df))
-        except Exception as e:
-            info["fdr_kospi_error"] = f"{type(e).__name__}: {str(e)[:120]}"
-    except ImportError as e:
-        info["fdr_error"] = f"ImportError: {e}"
-
-    # 2. 정적 JSON 폴백
-    try:
-        from backend.services.market_scanner import _load_static_universe
-        static = _load_static_universe()
-        info["static_json_count"] = len(static)
-    except Exception as e:
-        info["static_json_error"] = str(e)
-
-    # 3. Redis 캐시
-    try:
-        from backend.services import redis_cache
-        cached = redis_cache.get("kr_universe")
-        info["redis_kr_universe_count"] = len(cached) if isinstance(cached, list) else None
-        scan = redis_cache.get("scan_candidates")
-        info["redis_scan_candidates_count"] = len(scan) if isinstance(scan, list) else None
-    except Exception as e:
-        info["redis_error"] = str(e)
-
-    # 4. yfinance 단일 종목 다운로드 테스트 (삼성전자 .KS, 셀트리온 .KQ)
-    try:
-        import yfinance as yf
-        info["yfinance_version"] = getattr(yf, "__version__", "?")
-        for symbol in ("005930.KS", "068270.KQ"):
-            try:
-                d = yf.download(symbol, period="10d", progress=False, auto_adjust=True)
-                info[f"yf_{symbol}_rows"] = int(len(d))
-                if len(d):
-                    info[f"yf_{symbol}_last_close"] = float(d["Close"].iloc[-1])
-            except Exception as e:
-                info[f"yf_{symbol}_error"] = f"{type(e).__name__}: {str(e)[:120]}"
-    except Exception as e:
-        info["yfinance_error"] = str(e)
-
-    return info
-
-
-@app.get("/autotrade/scan-candidates")
-async def autotrade_scan_candidates():
-    """prescan_golden_cross 결과(KOSPI+KOSDAQ 시총 상위 600 중 골든크로스/근접 후보).
-    실제 매매 시 _buy_stocks가 워치리스트와 합쳐 평가 풀로 사용."""
-    from backend.services.market_scanner import get_scan_candidates
-    candidates = get_scan_candidates()
-    return {
-        "count": len(candidates),
-        "golden_cross": sum(1 for c in candidates if c.get("golden_cross")),
-        "near_cross":   sum(1 for c in candidates if c.get("near_cross")),
-        "candidates":   candidates,
-    }
-
-@app.get("/autotrade/scan-logs")
-async def autotrade_scan_logs():
-    """직전 자동매매 스캔 결과 — 종목별 매수/거절 사유 포함"""
-    from backend.services.db_cache import db_get_stale
-    log = await _run(db_get_stale, "quant_scan_log")
-    if not log:
-        return {
-            "scan_at": None, "status": "no_data",
-            "summary": "아직 스캔이 실행되지 않았습니다 (장 시간 내 10분 단위로 실행)",
-            "logs": [],
-        }
-    return log
-
-@app.get("/autotrade/watchlist")
-async def autotrade_watchlist():
-    from backend.services.quant_scheduler import _ensure_universe
-    await _run(_ensure_universe)
-    result = _sb().table("autotrade_watchlist").select("*").order("ticker").execute()
-    return result.data or []
-
-def _resolve_stock_name(ticker: str, market: str) -> str:
-    if market == "KR":
-        # 1순위: DART DB (corp_name — 이미 수집된 안정적 데이터)
-        try:
-            from backend.services.db_cache import _get_client as _sb2
-            row = _sb2().table("dart_corp_codes").select("corp_name").eq("ticker", ticker).maybe_single().execute()
-            if row and row.data and row.data.get("corp_name"):
-                return row.data["corp_name"]
-        except Exception as e:
-            print(f"[resolve_name] DART DB 조회 실패 {ticker}: {e}")
-
-        # 2순위: KIS 실시간 API
-        try:
-            from backend.services.kis_trader import _headers, BASE_URL
-            import requests as _req
-            res = _req.get(
-                f"{BASE_URL}/uapi/domestic-stock/v1/quotations/inquire-price",
-                headers=_headers("FHKST01010100"),
-                params={"fid_cond_mrkt_div_code": "J", "fid_input_iscd": ticker},
-                timeout=5,
-            )
-            name = res.json().get("output", {}).get("hts_kor_isnm", "").strip()
-            if name:
-                return name
-        except Exception as e:
-            print(f"[resolve_name] KIS API 실패 {ticker}: {e}")
-
-        return ticker
-
-    else:
-        try:
-            import yfinance as yf
-            info = yf.Ticker(ticker).info
-            return info.get("shortName") or info.get("longName") or ticker
-        except Exception as e:
-            print(f"[resolve_name] yfinance 실패 {ticker}: {e}")
-            return ticker
-
-
-@app.post("/autotrade/watchlist/refresh-names")
-async def refresh_watchlist_names():
-    """종목명이 ticker와 동일한 항목을 일괄 재조회·업데이트"""
-    rows = _sb().table("autotrade_watchlist").select("ticker, name, market").execute().data or []
-    updated, failed = [], []
-    for row in rows:
-        ticker = row["ticker"]
-        market = (row.get("market") or "KR").upper()
-        current_name = row.get("name", "")
-        # 이름이 ticker와 같거나 숫자로만 이루어진 경우 재조회
-        if current_name == ticker or current_name.isdigit():
-            new_name = await _run(_resolve_stock_name, ticker, market)
-            if new_name and new_name != ticker:
-                _sb().table("autotrade_watchlist").update({"name": new_name}).eq("ticker", ticker).execute()
-                updated.append({"ticker": ticker, "old": current_name, "new": new_name})
-            else:
-                failed.append({"ticker": ticker, "reason": "이름 조회 실패"})
-    return {"updated": updated, "failed": failed, "total_checked": len(rows)}
-
-
-@app.post("/autotrade/watchlist")
-async def add_to_watchlist(body: dict):
-    ticker = body.get("ticker", "").strip().upper()
-    market = body.get("market", "KR").upper()
-    if not ticker:
-        return {"error": "ticker 필수"}
-    name = await _run(_resolve_stock_name, ticker, market)
-    result = _sb().table("autotrade_watchlist").upsert(
-        {"ticker": ticker, "name": name, "market": market}, on_conflict="ticker"
-    ).execute()
-    return result.data[0] if result.data else {}
-
-@app.delete("/autotrade/watchlist/{ticker}")
-async def remove_from_watchlist(ticker: str):
-    _sb().table("autotrade_watchlist").delete().eq("ticker", ticker).execute()
-    return {"ok": True}
-
-
-# ── 백테스트 ────────────────────────────────────────────────────────────────────
-@app.get("/autotrade/backtest/{ticker}")
-async def backtest_ticker(ticker: str, market: str = "KR", days: int = 180):
-    """단일 종목 백테스트 (최대 200일)"""
-    from backend.services.backtest import run_backtest
-    days = min(days, 200)
-    try:
-        result = await _run(run_backtest, ticker.upper(), market.upper(), days)
-        return result
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.post("/autotrade/backtest/portfolio")
-async def backtest_portfolio(body: dict):
-    """유니버스 전체 포트폴리오 백테스트"""
-    from backend.services.backtest import run_portfolio_backtest
-    days    = min(body.get("days", 180), 200)
-    tickers = body.get("tickers")
-    if not tickers:
-        # 전체 유니버스 사용
-        rows    = _sb().table("autotrade_watchlist").select("ticker, market").execute().data or []
-        tickers = rows
-    try:
-        result = await _run(run_portfolio_backtest, tickers, days)
-        return result
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.get("/autotrade/financial-filter/{ticker}")
-async def financial_filter_check(ticker: str, market: str = "KR"):
-    """5단계 재무 필터 결과 확인"""
-    from backend.services.financial_filter import passes_5stage_filter
-    try:
-        ok, reason, fd = await _run(passes_5stage_filter, ticker.upper(), market.upper())
-        return {"ticker": ticker, "pass": ok, "reason": reason, "fundamentals": fd}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.get("/autotrade/vkospi")
-async def get_vkospi_endpoint():
-    """VKOSPI 현재 수치"""
-    from backend.services.kis_trader import get_vkospi
-    v = await _run(get_vkospi)
-    return {"vkospi": v, "halve_threshold": 25.0, "position_mult": 0.5 if (v or 0) >= 25.0 else 1.0}
-
-
-@app.get("/autotrade/trades/{trade_id}/details")
-async def trade_details(trade_id: int):
-    """매매 상세 분석 기록 조회"""
-    result = _sb().table("auto_trades").select("*").eq("id", trade_id).single().execute()
-    if not result.data:
-        raise HTTPException(404, "거래 기록 없음")
-    return result.data
-
-
-# ── WebSocket — 실시간 매매 알림 ─────────────────────────────────────────────────
-@app.websocket("/ws/signals")
-async def ws_signals(ws: WebSocket):
-    from backend.services import ws_manager
-    await ws_manager.connect(ws)
-    try:
-        while True:
-            await ws.receive_text()  # ping 유지
-    except WebSocketDisconnect:
-        ws_manager.disconnect(ws)

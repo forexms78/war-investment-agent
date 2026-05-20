@@ -6,11 +6,11 @@ import Link from "next/link";
 import {
   InvestorSummary, HotStock, RecommendedStock, CoinData,
   RealEstateIndicator, MoneyFlowAsset, NewsItem, CommodityData,
-  WhaleSignal, KoreaRates, BondData, ETFSignalsData,
+  DailySignal, KoreaRates, BondData, ETFSignalsData,
 } from "@/types";
 import MoneyFlowSection from "@/components/MoneyFlowSection";
 import SkeletonCard from "@/components/SkeletonCard";
-import WhaleSignalSection from "@/components/WhaleSignalSection";
+import DailySignalSection from "@/components/DailySignalSection";
 import MarketsSection from "@/components/MarketsSection";
 import ETFStockSection from "@/components/ETFStockSection";
 import HeroSection from "@/components/HeroSection";
@@ -22,21 +22,12 @@ import { useT } from "@/contexts/LanguageContext";
 // 클릭 시점에만 chunk 로드 — 초기 번들 크기 축소
 const InvestorModal     = dynamic(() => import("@/components/InvestorModal"));
 const StockModal        = dynamic(() => import("@/components/StockModal"));
-const QuantTab          = dynamic(() => import("@/components/quant/QuantTab"));
-const ForeignFlowSection = dynamic(() => import("@/components/ForeignFlowSection"));
+const ForeignFlowSection   = dynamic(() => import("@/components/ForeignFlowSection"));
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "signal" | "markets" | "etfstocks" | "foreign" | "quant";
+type Tab = "signal" | "markets" | "etfstocks" | "foreign";
 type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds";
-
-const WHALE_TO_MARKET: Record<string, MarketTab> = {
-  stocks:      "stocks",
-  crypto:      "crypto",
-  realestate:  "realestate",
-  commodities: "commodities",
-  bonds:       "bonds",
-};
 
 function fmtTime(d: Date) {
   return d.toLocaleString("ko-KR", {
@@ -55,7 +46,7 @@ export default function Home() {
   const [hotStocks, setHotStocks] = useState<HotStock[]>([]);
   const [recommendations, setRecommendations] = useState<{ buy: RecommendedStock[]; sell: RecommendedStock[] } | null>(null);
   const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number; korea_rates?: KoreaRates } | null>(null);
-  const [whaleSignal, setWhaleSignal] = useState<WhaleSignal | null>(null);
+  const [dailySignal, setDailySignal] = useState<DailySignal | null>(null);
   const [etfSignals, setEtfSignals] = useState<ETFSignalsData | null>(null);
   const [loadingInvestors, setLoadingInvestors] = useState(true);
   const [initialFetchedAt, setInitialFetchedAt] = useState<Date | null>(null);
@@ -114,15 +105,15 @@ export default function Home() {
       fetch(`${API}/stocks/hot`).then(r => r.json()),
       fetch(`${API}/stocks/recommendations`).then(r => r.json()),
       fetch(`${API}/money-flow`).then(r => r.json()),
-      fetch(`${API}/whale-signal`).then(r => r.json()),
+      fetch(`${API}/daily-signal`).then(r => r.json()),
       fetch(`${API}/etf-signals`).then(r => r.json()),
     ]).then(([invData, stockData, recData, flowData, signalData, etfData]) => {
       setInvestors(invData.investors || []);
       setHotStocks(stockData.stocks || []);
       setRecommendations(recData);
       setMoneyFlow(flowData);
-      if (signalData?.signals && Array.isArray(signalData.signals)) {
-        setWhaleSignal(signalData);
+      if (signalData?.buy_recommendations || signalData?.headline) {
+        setDailySignal(signalData);
       }
       if (etfData && Array.isArray(etfData.etfs)) {
         setEtfSignals(etfData);
@@ -164,26 +155,11 @@ export default function Home() {
       .finally(() => setLoadingBonds(false));
   }
 
-  // Whale Signal → 마켓 서브탭으로 정확히 이동 (버그 수정)
-  function handleWhaleTabChange(assetTab: string) {
-    const target = WHALE_TO_MARKET[assetTab];
-    if (target) {
-      setMarketSubTab(target);
-      // 이동할 탭 데이터 선제 로드
-      if (target === "crypto"      && coins.length === 0) loadCrypto();
-      if (target === "realestate"  && !reData)            loadRE();
-      if (target === "commodities" && !commodityData)     loadCommodity();
-      if (target === "bonds"       && !bondData)          loadBonds();
-    }
-    setActiveTab("markets");
-  }
-
   const tabs: { id: Tab; label: string }[] = [
     { id: "signal",    label: t("tab.signal")    },
     { id: "markets",   label: t("tab.markets")   },
     { id: "etfstocks", label: t("tab.etfstocks") },
     { id: "foreign",   label: t("tab.foreign")   },
-    { id: "quant",     label: t("tab.quant")     },
   ];
 
   const FED_TOOLTIP = t("tooltip.fed");
@@ -416,12 +392,12 @@ export default function Home() {
               )}
             </div>
 
-            {!whaleSignal ? (
+            {!dailySignal ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-                {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} height={180} />)}
+                {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} height={160} />)}
               </div>
             ) : (
-              <WhaleSignalSection data={whaleSignal} onTabChange={handleWhaleTabChange} />
+              <DailySignalSection data={dailySignal} />
             )}
 
             <PilotsSection investors={investors} onSelect={setSelectedInvestor} />
@@ -474,11 +450,6 @@ export default function Home() {
         {activeTab === "foreign" && (
           <div className="fade-in">
             <ForeignFlowSection />
-          </div>
-        )}
-        {activeTab === "quant" && (
-          <div className="fade-in">
-            <QuantTab />
           </div>
         )}
       </main>

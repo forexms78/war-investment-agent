@@ -13,6 +13,9 @@ ACCOUNT_NO = os.getenv("KIS_ACCOUNT_NO", "")
 ACCOUNT_SUFFIX = os.getenv("KIS_ACCOUNT_SUFFIX", "")
 IS_MOCK = os.getenv("KIS_MOCK", "true").lower() == "true"
 
+# 매매 주문(buy/sell market order) 전체 차단 — 데이터 조회 API는 정상 사용
+TRADING_DISABLED = True
+
 BASE_URL = (
     "https://openapivts.koreainvestment.com:29443" if IS_MOCK
     else "https://openapi.koreainvestment.com:9443"
@@ -363,6 +366,8 @@ def get_us_holdings() -> list:
 
 
 def buy_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict:
+    if TRADING_DISABLED:
+        raise RuntimeError("KIS 매매가 비활성화되어 있습니다 (직접 매매 사용 중)")
     if quantity <= 0:
         return {"error": "수량이 0이하"}
     if not exchange:
@@ -390,6 +395,8 @@ def buy_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict:
 
 
 def sell_us_market_order(ticker: str, quantity: int, exchange: str = "") -> dict:
+    if TRADING_DISABLED:
+        raise RuntimeError("KIS 매매가 비활성화되어 있습니다 (직접 매매 사용 중)")
     if quantity <= 0:
         return {"error": "수량이 0이하"}
     if not exchange:
@@ -431,6 +438,8 @@ def calculate_quantity(max_amount: int, price: float) -> int:
 
 
 def buy_market_order(ticker: str, quantity: int) -> dict:
+    if TRADING_DISABLED:
+        raise RuntimeError("KIS 매매가 비활성화되어 있습니다 (직접 매매 사용 중)")
     if quantity <= 0:
         return {"error": "수량이 0이하"}
     acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]
@@ -453,6 +462,8 @@ def buy_market_order(ticker: str, quantity: int) -> dict:
 
 
 def sell_market_order(ticker: str, quantity: int) -> dict:
+    if TRADING_DISABLED:
+        raise RuntimeError("KIS 매매가 비활성화되어 있습니다 (직접 매매 사용 중)")
     if quantity <= 0:
         return {"error": "수량이 0이하"}
     acc_no, acc_suffix = (ACCOUNT_NO.split("-") + [ACCOUNT_SUFFIX or "01"])[:2]

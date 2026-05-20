@@ -167,20 +167,29 @@ export interface MoneyFlowAsset {
   icon: string;
 }
 
-export interface AssetSignal {
-  asset: string;
-  label: "Strong Buy" | "Buy" | "Neutral" | "Avoid" | "Super Sell";
-  badge: string;
-  score: number;
-  color: string;
-  picks: string[];
-  sell_warns: string[];
+export interface DailySignalRecommendation {
+  ticker: string;
+  name: string;
+  reason: string;
+  confidence: number;
+  signals: string[];
 }
 
-export interface WhaleSignal {
+export interface DailySignalDriver {
   headline: string;
-  signals: AssetSignal[];
-  ai_insight: string;
+  impact: string;
+  direction: string;
+}
+
+export interface DailySignal {
+  headline: string;
+  sentiment: "Bullish" | "Neutral" | "Bearish";
+  sentiment_score: number;
+  market_summary: string;
+  buy_recommendations: DailySignalRecommendation[];
+  sell_recommendations: DailySignalRecommendation[];
+  focus_list: DailySignalRecommendation[];
+  market_drivers: DailySignalDriver[];
   fed_rate: number;
   updated_at: string;
   market_news?: NewsItem[];

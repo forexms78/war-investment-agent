@@ -10,11 +10,11 @@
 사용법:
   from backend.services.db_cache import db_get, db_set
 
-  cached = db_get("whale_signal", ttl=7200)
+  cached = db_get("daily_signal", ttl=7200)
   if cached:
       return cached
   result = compute_heavy_thing()
-  db_set("whale_signal", result)
+  db_set("daily_signal", result)
   return result
 """
 
