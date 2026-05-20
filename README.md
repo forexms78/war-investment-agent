@@ -21,6 +21,7 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 | 버전 | 날짜 | 내용 |
 |------|------|------|
+| v5.1 | 2026-05-20 | **README 본문 최신화** — v3.0 Quant 트레이딩 섹션 통째 제거(퀀트·자동매매 기능 제거 반영), "준비 중" KIS US 자동매매 섹션 제거(전체 매매 비활성화), "어떤 정보를 보여주는가" Whale Signal → Daily Signal로 갱신(5소스 + Gemini 종합), "만들면서 부딪힌 문제들"의 FinBERT 잡 표기 제거, 시스템 구조 다이어그램·엔드포인트 목록·기술 스택을 v5.0 코드 기준으로 재작성(KIS·foreign_flow·daily_signal·admin 라우트 명시, google-genai 2.3·httpx 0.28·supabase 2.30·pydantic 2.13 버전 반영). 버전 히스토리는 그대로 보존 |
 | v5.0 | 2026-05-20 | **데일리 시그널 + 추천 알고리즘 문서화 + KIS 직결 + SDK 업그레이드.** WhaleSignal → DailySignal 전환(슈퍼 투자자·ETF·외국인·뉴스 5가지 신호를 Gemini가 종합), 퀀트 자동매매 전면 제거(매매 함수 4개에 `TRADING_DISABLED` 가드, 관련 백엔드 서비스 모듈 8개 + 프론트 페이지·컴포넌트 11개 삭제 — 6,000줄 정리). KIS Open API 한국 종목(`.KS`/`.KQ`) 직결 — `financial.py` 일봉(30d/3mo) + `etf_signals.py` 1년 일봉(`inquire-daily-itemchartprice` 100건 페이징)로 Yahoo 대비 신선도 ~20분 향상(`yahoo_lag_sec` 1,201초 실측). `google-genai` 1.2 → 2.3 업그레이드(thinking_budget=0으로 응답 잘림 차단, response_mime_type=application/json 강제, timeout 60s, httpx/supabase/pydantic 의존성 도미노 동반 갱신). DailySignalSection UX 개선 — 카드 5→3 미리보기·클릭 시 StockModal·각 컬럼 하단 "+N개 더 보기 → ETF·주식 탭" 점선 버튼. README에 추천 알고리즘 + 슈퍼 투자자 8인 검증 + 신호별 가중치 섹션 추가. `/debug/kis-vs-yahoo` 신선도 비교 엔드포인트, `/admin/refresh-daily-signal` 캐시 즉시 갱신 엔드포인트 추가 |
 | v4.9 | 2026-05-16 | 외국인 매매 v3 — **전용 탭 분리 + 과거 날짜 조회**. 네이버 iframe·integration API 모두 `bizdate` 파라미터를 무시(항상 당일 데이터)로 확인됨 → 과거 데이터는 매일 누적이 유일한 방법. scheduler `refresh_foreign_flow`에 `top_history`(종목 TOP) 누적 머지 로직 추가(15일 cap, 페이로드 절약 위해 ticker/name/value/volume 4필드로 슬림). 응답 스키마 확장: `top_history`, `available_dates`(최신순), `current_date`. dashboard `Tab` 타입에 `"foreign"` 추가, 기존 signal 탭의 ForeignFlowSection 분리해 전용 탭으로 이동, i18n `tab.foreign`(KO "외국인 매매" / EN "Foreign Flow") 사전 추가. `ForeignFlowSection` UI 전면 개편: KOSPI/KOSDAQ pill + 날짜 드롭다운(전체 누적일, 한국어 요일 포맷) + 이전일/다음일 버튼, 시장 합계 카드에 "기준일 YYYY년 M월 D일 (요일)" 명시, 데이터 없는 날짜는 dashed 박스로 "누적되지 않음" 안내, `top_history`/`market_history` 선택 날짜 매칭하여 클라이언트 사이드 렌더링 |
 | v4.8 | 2026-05-16 | 외국인 매매 v2 — **시장 합계 데이터 추가**: 네이버 모바일 `/api/index/{KOSPI\|KOSDAQ}/integration` `dealTrendInfo` 발굴(외국인·기관·개인 당일 순매수 합계, 단위 백만원). `foreign_flow.py` `get_market_deal_trend_today()` 신규. `scheduler.py` `refresh_foreign_flow`에 history 누적 머지 로직 추가 — 매일 같은 bizdate면 update, 다른 bizdate면 append, 최근 30일 cap. 응답 스키마 확장: `market_today` + `market_history` 필드 추가. **프론트 UI 신규**: `components/ForeignFlowSection.tsx` — KOSPI/KOSDAQ pill 토글, 시장 합계 3개 카드(외국인·기관·개인 색상 코딩), 외국인 순매수/순매도 TOP 10 좌우 그리드, 모바일 1열 반응형. 단위 환산 유틸 `fmtMil`: 1조 이상 "조", 1억 이상 "억", 그 이하 "백만". `dashboard/page.tsx` signal 탭에 dynamic import로 끼워넣음(코드 스플리팅 유지). 한국 종목 모달은 yfinance가 `.KS`/`.KQ` 접미사를 요구하므로 이번 sprint에선 클릭 비활성 |
@@ -62,111 +63,19 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 ---
 
-## v3.0 — Whalyx Quant: 퀀트 트레이딩 시스템
-
-v3.0에서 방향이 바뀌었다. 뉴스 기반 감성 분석은 시장 분위기를 파악하는 데 유용하지만, 개별 종목의 내재 가치를 숫자로 따지는 데는 한계가 있다. 퀀트 트레이딩은 감정을 배제하고 재무제표 데이터를 수학적 규칙으로 바꿔 매매 신호를 만드는 것에서 시작한다.
-
-Whalyx Quant는 두 모듈로 분리된다.
-
-```mermaid
-flowchart LR
-    subgraph A["리서치 저널 /"]
-        A1["AI 분석 텍스트\n붙여넣기"] --> A2["Gemini 파싱\nticker·EPS·오버행 추출"]
-        A2 --> A3["퀀트 지표 계산\nForward P/E · Graham · PEG"]
-        A3 --> A4["적정가 3방식\n+ 시그널 판정"]
-        A4 --> A5["Supabase 저장\n일지 타임라인"]
-    end
-    subgraph B["자동매매 /autotrade"]
-        B1["KR 종목 시그널 스캔\n장중 10분마다"] --> B2["매수 조건 충족\n→ KIS 시장가 주문"]
-        B2 --> B3["체결 후 보유 감시\n-8% 손절 자동 매도"]
-        B3 --> B4["텔레그램 알림\n+ 체결 이력 저장"]
-    end
-```
-
-**리서치 저널**은 사용자가 직접 분석한 내용을 기록하는 곳이다. Gemini나 ChatGPT로 재무제표를 분석한 텍스트를 그대로 붙여넣으면, 백엔드 Gemini가 ticker·현재가·EPS·오버행 리스크를 자동으로 파싱한다. 파싱된 데이터로 세 가지 적정가를 계산한다.
-
-| 방식 | 공식 | 특징 |
-|------|------|------|
-| P/E 기반 | target P/E × Forward EPS | 가장 직관적 |
-| Graham Number | √(22.5 × EPS × BPS) | 벤저민 그레이엄 보수적 기준 |
-| PEG 기반 | EPS 성장률 × EPS | 고성장주에 유리 |
-
-세 방식의 평균이 종합 적정가가 되고, 현재가와의 괴리율로 매수/보류/매도 시그널이 결정된다. 모든 지표에는 툴팁이 달려 있어 Forward P/E, Graham Number, 오버행 같은 개념을 hover 시 한국어로 설명해준다.
-
-**자동매매 모듈**은 KIS(한국투자증권) REST API로 실제 주문을 실행한다. APScheduler가 장중 10분마다 한국 추적 종목의 시그널을 재계산하고, 매수 조건이 충족되면 종목당 최대 50만 원 한도로 시장가 주문을 낸다. 보유 종목은 실시간으로 수익률을 감시하다가 -8%에 도달하면 자동 손절한다. 체결마다 텔레그램 봇(`@Whalyx_bot`)으로 알림이 온다.
-
-```mermaid
-sequenceDiagram
-    participant S as APScheduler(10분)
-    participant KIS as KIS API
-    participant DB as Supabase
-    participant TG as Telegram Bot
-
-    S->>DB: KR 추적 종목 조회
-    S->>KIS: 현재가 조회
-    S->>S: 시그널 계산(Forward P/E·적정가)
-    alt 매수 조건 충족
-        S->>KIS: 시장가 매수 주문(최대 50만원)
-        KIS-->>S: 체결 확인
-        S->>DB: auto_trades 저장
-        S->>TG: 매수 알림
-    end
-    alt 보유 종목 -8% 도달
-        S->>KIS: 시장가 매도 주문
-        S->>DB: auto_trades 저장(stop_loss)
-        S->>TG: 손절 알림
-    end
-```
-
-두 모듈의 데이터는 Supabase 세 테이블(`quant_stocks`, `journal_entries`, `auto_trades`)에 분리 저장되고, 레거시 백엔드(뉴스·코인·부동산 라우터)는 삭제하지 않고 그대로 보존한다.
-
-**매매 유니버스 구성.** 자동매매 스캐너는 두 소스를 합쳐서 신호를 계산한다.
-
-| 소스 | 테이블 | 추가 방법 | UI 표시 |
-|------|--------|----------|---------|
-| 내 워치리스트 | `autotrade_watchlist` | /autotrade 워치리스트 관리 | - |
-| 리서치 저널 | `quant_stocks` | /quant 저널 텍스트 붙여넣기 | 내종목 뱃지 |
-
-리서치 저널에서 분석한 종목은 자동으로 매매 대상에 포함된다. 5단계 재무 필터·DART 긴급차단·뉴스 감성 분석을 동일하게 통과해야 실제 주문이 실행된다.
-
-**Regime Filter.** KOSPI MA20/MA60 추세와 VKOSPI 변동성 지수를 결합해 시장 국면을 bull / sideways / bear 세 단계로 분류한다. 국면에 따라 RSI 허용 범위, PER 상한, 거래량 기준, 코스피 하락 차단 임계치가 자동으로 조정된다.
-
-| 국면 | RSI 범위 | PER 상한 | 거래량 기준 | 코스피 차단 |
-|------|---------|---------|-----------|-----------|
-| bull | 40~80 | 45 | ×1.2 | -2.5% |
-| sideways | 40~65 | 30 | ×1.5 | -1.5% |
-| bear | 35~55 | 20 | ×2.0 | -1.0% |
-
----
-
-## 준비 중
-
-**해외주식 동시 운용.** 현재는 KIS Open API 단일 계좌(KR)로 운용 중이다. 해외주식(US) 자동매매는 별도 종합매매계좌 개설 후 아래 환경변수를 추가하면 활성화된다.
-
-```bash
-# Render 환경변수 추가 예정
-KIS_US_ACCOUNT_NO=해외주식계좌번호
-KIS_US_APP_KEY=해외계좌용앱키
-KIS_US_APP_SECRET=해외계좌용시크릿
-```
-
-KIS Open API는 앱키 1세트 = 계좌 1개에 연결되므로, KR·US 각각 별도 앱키가 필요하다. 코드상 `get_us_holdings()`, `buy_us_market_order()` 등 US 함수를 별도 토큰/계좌로 분리하는 작업이 남아있다.
-
----
-
 ## 어떤 정보를 보여주는가
 
-매일 아침 Gemini가 글로벌 뉴스 20개를 읽고 오늘 시장을 가장 크게 움직이는 뉴스 3개를 골라준다. bullish / bearish / mixed 판단과 함께 어떤 자산에 어떤 영향을 주는지 한 문장으로 요약한다. 여기에 **Whale Signal** — 금리 환경과 주요 자산군의 30일 수익률을 결합한 5단계 투자 신호(Strong Buy / Buy / Neutral / Avoid / Super Sell) 가 붙는다.
+매일 Gemini 2.5 Flash가 글로벌 뉴스 20개를 읽고 오늘 시장을 가장 크게 움직이는 뉴스 3개를 골라 bullish / bearish / mixed 판단과 함께 자산별 영향을 한 문장으로 요약한다. 여기에 **Daily Signal** — 슈퍼 투자자 13F · ETF 기술적 신호 · 외국인 매매 · 마켓 드라이버 · Fed 금리 환경을 종합한 매수 5종 / 매도 5종 / Watch 5종 추천이 confidence 점수와 함께 붙는다 (6시간 주기 갱신).
 
 ```mermaid
 flowchart LR
-    A["📰 Google News RSS\n글로벌 헤드라인 20개"] --> B["🧠 Gemini AI\n오늘 핵심 뉴스 3선"]
-    B --> C["📊 실시간 데이터\n주식 · 코인 · 금리 · 광물"]
-    C --> D["💡 Whale Signal\n5단계 투자 신호"]
-    D --> E["📱 통합 대시보드\n뉴스 · 주식 · 코인 · 부동산 · 자금흐름"]
+    A["📰 Google News RSS\n글로벌 헤드라인 20개"] --> B["🧠 Gemini 2.5 Flash\n오늘 핵심 뉴스 3선"]
+    B --> C["📊 실시간 데이터\n주식 · ETF · 코인 · 외국인 매매"]
+    C --> D["💡 Daily Signal\nBuy 5 · Sell 5 · Watch 5\n(confidence 0~100)"]
+    D --> E["📱 통합 대시보드\n뉴스 · ETF · 주식 · 외국인 · 자금흐름"]
 ```
 
-주식 탭에서는 Warren Buffett, Cathie Wood, Michael Burry 등 8인의 유명 투자자 포트폴리오를 추적한다. 복수의 투자자가 동시에 매수 중인 종목은 자동 집계되어 추천 신호로 표시된다.
+주식 탭에서는 Warren Buffett, Cathie Wood, Michael Burry 등 8인의 슈퍼 투자자 포트폴리오를 추적한다. 복수의 투자자가 동시에 매수 중인 종목은 자동 집계되어 추천 신호로 표시된다.
 
 | 투자자 | 소속 | 스타일 |
 |--------|------|--------|
@@ -273,16 +182,17 @@ flowchart TD
     DB["🗄️ Supabase\napi_cache 테이블"]
 
     subgraph Scheduler["🕐 APScheduler — 백그라운드 전담"]
-        J1["주가 데이터\n10분 주기 (Yahoo Finance)"]
-        J2["투자자·종목 AI 인사이트\n1시간 주기 (Gemini × 20회)"]
+        J1["주가·시세\n10분 주기 (Yahoo + KIS)"]
+        J2["investor / hot 종목 AI 인사이트\n1시간 주기 (Gemini)"]
         J3["마켓 드라이버\n30분 주기 (Gemini)"]
-        J4["오늘의 투자포인트\n6시간 주기 (FinBERT + Gemini)"]
+        J4["Daily Signal\n6시간 주기 (5소스 종합 + Gemini)"]
+        J5["외국인 매매\nKST 16:30/17:30 (네이버 + KIS)"]
     end
 
     FE -->|HTTPS| BE
     BE -->|db_get_stale| DB
     Scheduler -->|db_set| DB
-    J1 & J2 & J3 & J4 -.->|외부 API 호출| Scheduler
+    J1 & J2 & J3 & J4 & J5 -.->|외부 API 호출| Scheduler
 ```
 
 Gemini는 오직 스케줄러에서만 호출된다. 엔드포인트와 서버 재시작(warm_all_caches)에서는 Gemini를 부르지 않는다. redeploy가 잦아도 레이트 리밋이 걸리지 않는다.
@@ -306,41 +216,50 @@ flowchart TD
     DB["🗄️ Supabase PostgreSQL\napi_cache 테이블 (key · data JSONB · updated_at)"]
 
     subgraph Scheduler["APScheduler 백그라운드 잡"]
-        S1["investors / hot / recommendations\n10분 — Yahoo Finance"]
-        S2["investor_details × 8명\nhot_stock_details × 12종목\n1시간 — Gemini 순차 (4초 간격)"]
+        S1["investors / stocks_hot / recommendations\n10분 — Yahoo + KIS"]
+        S2["etf_signals\n30분 — Yahoo + KIS + Gemini 배치"]
         S3["market_driver\n30분 — Gemini"]
-        S4["today_picks\n6시간 — FinBERT + Gemini"]
+        S4["daily_signal\n6시간 — 5소스 종합 + Gemini"]
+        S5["foreign_flow\nKST 16:30/17:30 — 네이버 + KIS"]
     end
 
     subgraph External["외부 API"]
         YF["Yahoo Finance\nyfinance + REST fallback"]
-        GEM["Gemini 2.5 Flash\ngoogle-genai SDK"]
+        KIS["KIS Open API\n한국 종목 직결 (시세 · 외국인 매매)"]
+        GEM["Gemini 2.5 Flash\ngoogle-genai 2.3"]
         RSS["Google News RSS\nfeedparser (API 키 없음)"]
         CG["CoinGecko v3\n코인 + sparkline"]
-        BOK["한국은행 ECOS\n기준금리 · 국고채 · 환율"]
+        BOK["한국은행 ECOS / FRED\n금리 · 국고채 · 환율"]
     end
 
     FE -->|HTTPS| BE
     BE -->|< 200ms| DB
     Scheduler -->|db_set| DB
-    S1 --> YF & RSS
-    S2 --> YF & GEM & RSS
+    S1 --> YF & KIS
+    S2 --> YF & KIS & GEM
     S3 --> RSS & GEM
-    S4 --> YF & GEM
+    S4 --> GEM
+    S5 --> KIS
 ```
 
 ```
-GET /market-driver           # 오늘 시장 핵심 뉴스 3선 (Gemini 선정)
-GET /investors               # 8인 유명 투자자 포트폴리오
-GET /stocks/recommendations  # 매수/매도 추천 신호
-GET /stocks/hot              # 핫 종목 TOP 12
-GET /stocks/{ticker}         # 종목 상세 + 차트 + AI 분석
-GET /crypto                  # 코인 시세 + 뉴스
-GET /realestate              # 한국 부동산 지표
-GET /commodities             # 광물·원자재 시세
-GET /money-flow              # 자산군 수익률 + 금리 신호
-GET /whale-signal            # 5단계 투자 신호 + Gemini 거시분석
-GET /korea-rates             # 한국은행 기준금리·국고채·환율
+GET  /daily-signal            # Buy 5 · Sell 5 · Watch 5 (5소스 + Gemini 종합)
+GET  /etf-signals             # ETF·주식 STRONG_BUY/BUY/HOLD/SELL/STRONG_SELL
+GET  /foreign-flow            # KOSPI/KOSDAQ 외국인 매매 (시장 합계 + TOP 종목)
+GET  /foreign-flow/{ticker}   # 종목별 외국인·기관·개인 30영업일 추이 (KIS)
+GET  /market-driver           # 오늘 시장 핵심 뉴스 3선 (Gemini)
+GET  /investors               # 슈퍼 투자자 8인 포트폴리오 (13F)
+GET  /stocks/recommendations  # 슈퍼 투자자 복수 매수/매도 집계
+GET  /stocks/hot              # 핫 종목 TOP 12
+GET  /stocks/{ticker}         # 종목 상세 + 차트 + 펀더멘털
+GET  /money-flow              # 자산군 30일 수익률 + 금리 환경
+GET  /korea-rates             # 한국은행 기준금리·국고채·환율
+GET  /crypto                  # 코인 시세 + 7일 sparkline
+GET  /realestate              # 한국 부동산 지표
+GET  /commodities             # 원자재 시세
+GET  /debug/kis-vs-yahoo      # KIS vs Yahoo 시세 신선도 비교 도구
+POST /admin/refresh-daily-signal  # 데일리 시그널 캐시 즉시 갱신
+POST /admin/refresh-etf-signals   # ETF 시그널 캐시 즉시 갱신
 ```
 
 ---
@@ -349,13 +268,16 @@ GET /korea-rates             # 한국은행 기준금리·국고채·환율
 
 | 영역 | 기술 | 선택 이유 |
 |------|------|-----------|
-| Backend | FastAPI + Python 3.11 | async 지원, 자동 OpenAPI 문서 |
-| Frontend | Next.js 16 + TypeScript | App Router, 정적 최적화 |
-| AI | Gemini 2.5 Flash | 무료 티어, 긴 컨텍스트 |
-| 주가 | yfinance + Yahoo Finance REST | 무료, REST 폴백으로 IP 차단 우회 |
+| Backend | FastAPI 0.115 + Python 3.11 | async 지원, 자동 OpenAPI 문서 |
+| Frontend | Next.js 16 + TypeScript + Tailwind v4 | App Router, 정적 최적화 |
+| AI | Gemini 2.5 Flash (google-genai 2.3) | 한국어 자연스러움, JSON mode, thinking_budget=0으로 응답 잘림 차단 |
+| 한국 주가·재무 | KIS Open API 직결 | Yahoo 대비 ~20분 신선 (실시간 거래소 직결) |
+| 미국 주가 | yfinance + Yahoo Finance REST | 무료, REST 폴백으로 IP 차단 우회 |
 | 코인 | CoinGecko API v3 | 무료, sparkline 지원 |
 | 뉴스 | Google News RSS + feedparser | API 키 없이 실시간 헤드라인 |
-| 한국 금리 | 한국은행 ECOS API | 기준금리·국고채·원달러 환율 |
+| 외국인 매매 | 네이버 모바일 + KIS Open API | 시장 합계(네이버) + 종목별 추이(KIS) |
+| 금리 | 한국은행 ECOS + FRED API | KR 기준금리·국고채·환율 + US Fed |
+| DB | Supabase PostgreSQL (service_role) | api_cache 단일 테이블 (JSONB) |
 | 차트 | Recharts | React 네이티브, 커스텀 가능 |
 | 배포 | Render (BE) + Vercel (FE) | 무료 티어 프로덕션 지원 |
 
