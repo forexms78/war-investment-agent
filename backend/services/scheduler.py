@@ -478,12 +478,24 @@ async def refresh_etf_signals():
     """ETF/미장/국장 매수매도 시그널 (30분 주기, Gemini 배치 1회)"""
     from backend.services.etf_signals import get_etf_signals
     from backend.services.db_cache import db_set
+    from backend.services.prediction_logger import save_etf_predictions
     try:
         result = await _run_sync(get_etf_signals)
         await _run_sync(db_set, "etf_signals", result)
+        await _run_sync(save_etf_predictions, result)
         logger.info("✅ [scheduler] etf_signals 갱신 완료")
     except Exception as e:
         logger.error(f"❌ [scheduler] etf_signals 갱신 실패: {e}")
+
+
+async def evaluate_predictions():
+    """어제 ETF 예측에 실제 가격 대입 → 적중 여부 기록 (KST 18:30 = UTC 09:30)"""
+    from backend.services.prediction_logger import evaluate_predictions as _evaluate
+    try:
+        updated = await _run_sync(_evaluate)
+        logger.info(f"✅ [scheduler] prediction_log 평가 완료: {updated}건")
+    except Exception as e:
+        logger.error(f"❌ [scheduler] prediction_log 평가 실패: {e}")
 
 
 async def refresh_market_driver():
@@ -601,6 +613,8 @@ def create_scheduler() -> AsyncIOScheduler:
     # ── 외국인 매매 종목 TOP(네이버) — KST 16:30 장 마감 후 1차 + 17:30 백업 (UTC 07:30 / 08:30) ──
     scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=7, minute=30, timezone="UTC"), id="foreign_flow",        max_instances=1)
     scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=8, minute=30, timezone="UTC"), id="foreign_flow_backup", max_instances=1)
+    # ── 예측 정확도 평가 — KST 18:30 장 마감 1시간 후 (UTC 09:30) ──
+    scheduler.add_job(evaluate_predictions, CronTrigger(hour=9, minute=30, timezone="UTC"), id="evaluate_predictions", max_instances=1)
     # ── 텔레그램 뉴스 발송 — KST 07:00 / 12:00 / 18:00 (UTC 22:00 / 03:00 / 09:00) ──
     scheduler.add_job(send_telegram_morning, CronTrigger(hour=22, minute=0, timezone="UTC"), id="telegram_morning", max_instances=1)
     scheduler.add_job(send_telegram_lunch,   CronTrigger(hour=3,  minute=0, timezone="UTC"), id="telegram_lunch",   max_instances=1)
