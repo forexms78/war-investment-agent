@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="Whalyx API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Whalyx API", version="3.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,7 +55,7 @@ def _run(fn, *args):
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "service": "Whalyx API", "version": "2.0.0"}
+    return {"status": "ok", "service": "Whalyx API", "version": "3.2.0"}
 
 
 @app.get("/debug/env")
