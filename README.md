@@ -21,6 +21,7 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 | 버전 | 날짜 | 내용 |
 |------|------|------|
+| v5.2 | 2026-05-22 | **ETF 예측 이력 저장 및 정확도 평가 시스템 추가.** `backend/services/prediction_logger.py` 신규 — ETF 신호 생성 시 `prediction_log` 테이블에 ticker·signal·RSI·trend_phase·price_at_signal upsert 저장, 매일 KST 18:30 전날 예측에 실제 종가·변동률·적중 여부(correct_1d) 자동 업데이트, `get_accuracy_stats(days)` 로 신호별/기간별 적중률 통계 조회. `scheduler.py`: `refresh_etf_signals` 완료 후 `save_etf_predictions()` 호출 추가, `evaluate_predictions` 잡 신규(UTC 09:30 = KST 18:30 장 마감 1시간 후). Supabase `prediction_log` 테이블 신규(signal_date + ticker UNIQUE 제약, signal_date 인덱스). 누적 30일 이후 신호별 적중률 통계로 RSI 임계치·추세별 시그널 로직 튜닝 기반 마련 |
 | v5.1 | 2026-05-20 | **README 본문 최신화** — v3.0 Quant 트레이딩 섹션 통째 제거(퀀트·자동매매 기능 제거 반영), "준비 중" KIS US 자동매매 섹션 제거(전체 매매 비활성화), "어떤 정보를 보여주는가" Whale Signal → Daily Signal로 갱신(5소스 + Gemini 종합), "만들면서 부딪힌 문제들"의 FinBERT 잡 표기 제거, 시스템 구조 다이어그램·엔드포인트 목록·기술 스택을 v5.0 코드 기준으로 재작성(KIS·foreign_flow·daily_signal·admin 라우트 명시, google-genai 2.3·httpx 0.28·supabase 2.30·pydantic 2.13 버전 반영). 버전 히스토리는 그대로 보존 |
 | v5.0 | 2026-05-20 | **데일리 시그널 + 추천 알고리즘 문서화 + KIS 직결 + SDK 업그레이드.** WhaleSignal → DailySignal 전환(슈퍼 투자자·ETF·외국인·뉴스 5가지 신호를 Gemini가 종합), 퀀트 자동매매 전면 제거(매매 함수 4개에 `TRADING_DISABLED` 가드, 관련 백엔드 서비스 모듈 8개 + 프론트 페이지·컴포넌트 11개 삭제 — 6,000줄 정리). KIS Open API 한국 종목(`.KS`/`.KQ`) 직결 — `financial.py` 일봉(30d/3mo) + `etf_signals.py` 1년 일봉(`inquire-daily-itemchartprice` 100건 페이징)로 Yahoo 대비 신선도 ~20분 향상(`yahoo_lag_sec` 1,201초 실측). `google-genai` 1.2 → 2.3 업그레이드(thinking_budget=0으로 응답 잘림 차단, response_mime_type=application/json 강제, timeout 60s, httpx/supabase/pydantic 의존성 도미노 동반 갱신). DailySignalSection UX 개선 — 카드 5→3 미리보기·클릭 시 StockModal·각 컬럼 하단 "+N개 더 보기 → ETF·주식 탭" 점선 버튼. README에 추천 알고리즘 + 슈퍼 투자자 8인 검증 + 신호별 가중치 섹션 추가. `/debug/kis-vs-yahoo` 신선도 비교 엔드포인트, `/admin/refresh-daily-signal` 캐시 즉시 갱신 엔드포인트 추가 |
 | v4.9 | 2026-05-16 | 외국인 매매 v3 — **전용 탭 분리 + 과거 날짜 조회**. 네이버 iframe·integration API 모두 `bizdate` 파라미터를 무시(항상 당일 데이터)로 확인됨 → 과거 데이터는 매일 누적이 유일한 방법. scheduler `refresh_foreign_flow`에 `top_history`(종목 TOP) 누적 머지 로직 추가(15일 cap, 페이로드 절약 위해 ticker/name/value/volume 4필드로 슬림). 응답 스키마 확장: `top_history`, `available_dates`(최신순), `current_date`. dashboard `Tab` 타입에 `"foreign"` 추가, 기존 signal 탭의 ForeignFlowSection 분리해 전용 탭으로 이동, i18n `tab.foreign`(KO "외국인 매매" / EN "Foreign Flow") 사전 추가. `ForeignFlowSection` UI 전면 개편: KOSPI/KOSDAQ pill + 날짜 드롭다운(전체 누적일, 한국어 요일 포맷) + 이전일/다음일 버튼, 시장 합계 카드에 "기준일 YYYY년 M월 D일 (요일)" 명시, 데이터 없는 날짜는 dashed 박스로 "누적되지 않음" 안내, `top_history`/`market_history` 선택 날짜 매칭하여 클라이언트 사이드 렌더링 |
@@ -213,14 +214,15 @@ Gemini는 오직 스케줄러에서만 호출된다. 엔드포인트와 서버 �
 flowchart TD
     FE["🌐 Next.js 16 (Vercel)"]
     BE["⚡ FastAPI 0.115 (Render)\ndb_get_stale 조회만 — Gemini 없음"]
-    DB["🗄️ Supabase PostgreSQL\napi_cache 테이블 (key · data JSONB · updated_at)"]
+    DB["🗄️ Supabase PostgreSQL\napi_cache (캐시) · prediction_log (예측 이력)"]
 
     subgraph Scheduler["APScheduler 백그라운드 잡"]
         S1["investors / stocks_hot / recommendations\n10분 — Yahoo + KIS"]
-        S2["etf_signals\n30분 — Yahoo + KIS + Gemini 배치"]
+        S2["etf_signals\n30분 — Yahoo + KIS + Gemini 배치\n→ prediction_log 저장"]
         S3["market_driver\n30분 — Gemini"]
         S4["daily_signal\n6시간 — 5소스 종합 + Gemini"]
         S5["foreign_flow\nKST 16:30/17:30 — 네이버 + KIS"]
+        S6["evaluate_predictions\nKST 18:30 — 전날 예측 적중 여부 업데이트"]
     end
 
     subgraph External["외부 API"]
