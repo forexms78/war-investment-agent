@@ -660,3 +660,164 @@ async def today_picks():
         "news": [],
         "updated_at": None,
     }
+
+
+# ── AI 추천 회고 — 자기학습 루프 가시화 ────────────────────────────────────────
+from datetime import datetime as _dt, timedelta as _td, date as _date
+from backend.services.db_cache import _get_client as _sb_review
+
+def _summary_sync() -> dict:
+    sb = _sb_review()
+    if not sb:
+        return {"error": "supabase 미연결"}
+    out = {
+        "total_predictions": 0, "verified_count": 0,
+        "hit_1d": None, "hit_7d": None, "hit_30d": None,
+        "avg_ret_7d": None, "active_lessons": 0,
+        "this_week_hit": None, "last_week_hit": None,
+    }
+    try:
+        all_rows = sb.table("prediction_snapshots").select(
+            "hit_1d,hit_7d,hit_30d,ret_7d,snapshot_date"
+        ).execute().data or []
+        out["total_predictions"] = len(all_rows)
+
+        def rate(rows, col):
+            ver = [r for r in rows if r.get(col) is not None]
+            if not ver: return None
+            wins = sum(1 for r in ver if r[col])
+            return round(wins / len(ver) * 100, 1)
+
+        out["hit_1d"]  = rate(all_rows, "hit_1d")
+        out["hit_7d"]  = rate(all_rows, "hit_7d")
+        out["hit_30d"] = rate(all_rows, "hit_30d")
+        out["verified_count"] = sum(1 for r in all_rows if r.get("hit_7d") is not None)
+
+        rets = [float(r["ret_7d"]) for r in all_rows if r.get("ret_7d") is not None]
+        out["avg_ret_7d"] = round(sum(rets) / len(rets), 2) if rets else None
+
+        # 이번주 vs 지난주 (1d hit 기준)
+        today = _date.today()
+        wk_start = today - _td(days=today.weekday())
+        last_wk_start = wk_start - _td(days=7)
+        this_wk = [r for r in all_rows if r["snapshot_date"] >= wk_start.isoformat()]
+        last_wk = [r for r in all_rows if last_wk_start.isoformat() <= r["snapshot_date"] < wk_start.isoformat()]
+        out["this_week_hit"] = rate(this_wk, "hit_1d")
+        out["last_week_hit"] = rate(last_wk, "hit_1d")
+
+        lr = sb.table("failure_analyses").select("id", count="exact").eq("active", True).execute()
+        out["active_lessons"] = lr.count or 0
+    except Exception as e:
+        out["error"] = str(e)
+    return out
+
+
+@app.get("/review/summary")
+async def review_summary():
+    """AI 회고 KPI 통합 — 적중률·평균수익률·적용 중 규칙·주간 비교"""
+    return await _run(_summary_sync)
+
+
+def _snapshots_sync(limit: int) -> list:
+    sb = _sb_review()
+    if not sb:
+        return []
+    try:
+        r = sb.table("prediction_snapshots") \
+            .select("*") \
+            .order("snapshot_date", desc=True) \
+            .order("id", desc=True) \
+            .limit(limit) \
+            .execute()
+        return r.data or []
+    except Exception:
+        return []
+
+
+@app.get("/review/snapshots")
+async def review_snapshots(limit: int = 60):
+    """최근 추천 이력 (검증 결과 포함)"""
+    rows = await _run(_snapshots_sync, max(1, min(200, limit)))
+    return {"items": rows, "count": len(rows)}
+
+
+def _failures_sync(limit: int) -> list:
+    sb = _sb_review()
+    if not sb:
+        return []
+    try:
+        # 분석 + 원본 스냅샷 JOIN (Supabase select 임베드 문법)
+        r = sb.table("failure_analyses") \
+            .select("*,snapshot:prediction_snapshots(ticker,pick_type,snapshot_date,entry_price,momentum_30d,sentiment,ret_1d,ret_7d,ret_30d)") \
+            .eq("active", True) \
+            .order("analyzed_at", desc=True) \
+            .limit(limit) \
+            .execute()
+        return r.data or []
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+@app.get("/review/failures")
+async def review_failures(limit: int = 15):
+    """빗나간 추천의 심층 분석 (root_cause + avoid_rule)"""
+    rows = await _run(_failures_sync, max(1, min(50, limit)))
+    return {"items": rows, "count": len(rows)}
+
+
+def _lessons_sync() -> dict:
+    from backend.services.prediction_tracker import get_active_failure_patterns
+    sb = _sb_review()
+    top = get_active_failure_patterns(top_n=3)
+    all_active = []
+    if sb:
+        try:
+            r = sb.table("failure_analyses") \
+                .select("failure_category,avoid_rule,severity,analyzed_at") \
+                .eq("active", True) \
+                .order("analyzed_at", desc=True) \
+                .limit(50) \
+                .execute()
+            all_active = r.data or []
+        except Exception:
+            pass
+    return {"top": top, "all": all_active}
+
+
+@app.get("/review/lessons")
+async def review_lessons():
+    """현재 다음 추천 생성에 적용 중인 회피 규칙"""
+    return await _run(_lessons_sync)
+
+
+def _weekly_trend_sync() -> list:
+    sb = _sb_review()
+    if not sb:
+        return []
+    try:
+        # 뷰 활용 — 마이그레이션에서 v_weekly_hit_rate 생성됨
+        r = sb.from_("v_weekly_hit_rate").select("*").limit(26).execute()
+        rows = r.data or []
+        # 차트용 변환 — 백분율
+        out = []
+        for row in rows:
+            out.append({
+                "week_start": row["week_start"],
+                "hit_rate_1d":  round(row["win_1d"]  / row["total_1d"]  * 100, 1) if row["total_1d"]  else None,
+                "hit_rate_7d":  round(row["win_7d"]  / row["total_7d"]  * 100, 1) if row["total_7d"]  else None,
+                "hit_rate_30d": round(row["win_30d"] / row["total_30d"] * 100, 1) if row["total_30d"] else None,
+                "avg_ret_7d":   row.get("avg_ret_7d"),
+                "total_1d":     row["total_1d"],
+            })
+        return list(reversed(out))  # 오래된 → 최신
+    except Exception:
+        return []
+
+
+@app.get("/review/weekly-trend")
+async def review_weekly_trend():
+    """주간 적중률 추이 — 라인차트용"""
+    rows = await _run(_weekly_trend_sync)
+    return {"items": rows, "count": len(rows)}
+
+

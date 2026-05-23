@@ -16,6 +16,12 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from backend.services.db_cache import db_get, db_set
+from backend.services.prediction_tracker import (
+    save_snapshot,
+    get_active_failure_patterns,
+    apply_score_penalty,
+    build_lesson_prompt_block,
+)
 from backend.utils.gemini import call_gemini
 
 load_dotenv()
@@ -157,21 +163,24 @@ def _finbert_sentiment(texts: list[str]) -> float:
 # Gemini 추천 이유 생성
 # ─────────────────────────────────────────────
 
-def _gemini_reason(ticker: str, name: str, momentum: float, sentiment: float, volume_ratio: float, pick_type: str) -> str:
-    """Gemini 2.5 Flash로 추천 이유 1~2문장 생성 (한국어). 실패 시 폴백 문자열."""
+def _gemini_reason(ticker: str, name: str, momentum: float, sentiment: float, volume_ratio: float, pick_type: str, lesson_block: str = "") -> str:
+    """Gemini 2.5 Flash로 추천 이유 1~2문장 생성 (한국어). 실패 시 폴백 문자열.
+    lesson_block: prediction_tracker가 만든 회피 규칙 블록. 비어있지 않으면 프롬프트 상단에 주입."""
     try:
         type_kr = {"buy": "매수 추천", "sell": "매도 추천", "watch": "관심 종목"}[pick_type]
         prompt = (
+            f"{lesson_block}"
             f"종목: {ticker} ({name})\n"
             f"30일 수익률: {momentum:+.1f}%\n"
             f"뉴스 감성 점수: {sentiment:+.2f} (-1=부정, 0=중립, +1=긍정)\n"
             f"거래량 비율 (오늘/20일평균): {volume_ratio:.1f}x\n"
             f"판단: {type_kr}\n\n"
             "위 데이터를 근거로 이 종목이 왜 지금 이 판단을 받았는지 "
-            "1~2문장으로 간결하게 설명해. 한국어로. 수치를 직접 언급해."
+            "1~2문장으로 간결하게 설명해. 한국어로. 수치를 직접 언급해. "
+            "만약 상단의 회피 규칙에 매칭되는 패턴이 있다면 그 점도 짧게 언급해."
         )
         text = call_gemini(prompt)
-        return text[:120] if len(text) > 120 else text
+        return text[:160] if len(text) > 160 else text
     except Exception:
         return "데이터 분석 중"
 
@@ -242,42 +251,63 @@ def get_today_picks() -> dict:
     for t, headlines in news_map.items():
         sentiments[t] = _finbert_sentiment(headlines)
 
-    # 3. 스코어 계산 (감성 반영)
+    # 3. 스코어 계산 (감성 반영) + 회피 규칙 페널티 적용
     base_scores = _compute_scores(prices)
     tickers_list = list(prices.keys())
     sentiment_values = [sentiments.get(t, 0.0) for t in tickers_list]
     sentiment_norm = _normalize(sentiment_values)
-    final_scores: dict[str, float] = {}
-    for i, t in enumerate(tickers_list):
-        final_scores[t] = round(
-            base_scores[t] + sentiment_norm[i] * 0.2,
-            4
-        )
 
-    # 4. 매수 / 매도 / 관심 분류
+    # 회피 규칙 활성 패턴 조회 (지난 회고에서 도출된 Top 3)
+    active_patterns = get_active_failure_patterns()
+    lesson_block    = build_lesson_prompt_block(active_patterns)
+
+    final_scores:    dict[str, float] = {}
+    matched_map:     dict[str, list[str]] = {}
+    pre_penalty:     dict[str, float] = {}
+
+    for i, t in enumerate(tickers_list):
+        raw = round(base_scores[t] + sentiment_norm[i] * 0.2, 4)
+        pre_penalty[t] = raw
+        # buy/sell 후보 양쪽으로 시뮬 — 점수 부호에 따라 결정
+        candidate_type = "buy" if raw >= 0 else "sell"
+        penalized, matched = apply_score_penalty({
+            "pick_type":    candidate_type,
+            "momentum_30d": prices[t]["momentum_30d"],
+            "sentiment":    sentiments.get(t, 0.0),
+            "volume_ratio": prices[t]["volume_ratio"],
+            "raw_score":    raw,
+        }, active_patterns)
+        final_scores[t] = penalized
+        matched_map[t]  = matched
+
+    # 4. 매수 / 매도 / 관심 분류 — 페널티 적용된 점수 기준
     sorted_by_score = sorted(final_scores.items(), key=lambda x: -x[1])
     buy_tickers   = [t for t, _ in sorted_by_score[:3]]
     sell_tickers  = [t for t, _ in sorted_by_score[-3:]]
     rest          = [t for t, _ in sorted_by_score[3:-3]]
     watch_tickers = sorted(rest, key=lambda t: -prices[t]["volume_ratio"])[:3]
 
-    # 5. Gemini 이유 생성 (9종목)
+    # 5. Gemini 이유 생성 (9종목) — lesson_block 주입
     def _build_card(ticker: str, pick_type: str) -> dict:
         p = prices[ticker]
         reason = _gemini_reason(
             ticker, TICKER_NAMES.get(ticker, ticker),
             p["momentum_30d"], sentiments.get(ticker, 0.0),
             p["volume_ratio"], pick_type,
+            lesson_block=lesson_block,
         )
         return {
-            "ticker":       ticker,
-            "name":         TICKER_NAMES.get(ticker, ticker),
-            "price":        p["price"],
-            "change_pct":   p["change_1d"],
-            "momentum_30d": p["momentum_30d"],
-            "sentiment":    sentiments.get(ticker, 0.0),
-            "volume_ratio": p["volume_ratio"],
-            "reason":       reason,
+            "ticker":          ticker,
+            "name":            TICKER_NAMES.get(ticker, ticker),
+            "price":           p["price"],
+            "change_pct":      p["change_1d"],
+            "momentum_30d":    p["momentum_30d"],
+            "sentiment":       sentiments.get(ticker, 0.0),
+            "volume_ratio":    p["volume_ratio"],
+            "raw_score":       pre_penalty.get(ticker),
+            "final_score":     final_scores.get(ticker),
+            "matched_patterns": matched_map.get(ticker, []),
+            "reason":          reason,
         }
 
     buy_cards   = [_build_card(t, "buy")   for t in buy_tickers]
@@ -286,13 +316,22 @@ def get_today_picks() -> dict:
 
     generated_at = datetime.now(timezone.utc)
     result = {
-        "buy":          buy_cards,
-        "sell":         sell_cards,
-        "watch":        watch_cards,
-        "generated_at": generated_at.isoformat(),
-        "next_update":  datetime.fromtimestamp(now + PICKS_TTL, tz=timezone.utc).isoformat(),
+        "buy":             buy_cards,
+        "sell":            sell_cards,
+        "watch":           watch_cards,
+        "active_patterns": active_patterns,
+        "generated_at":    generated_at.isoformat(),
+        "next_update":     datetime.fromtimestamp(now + PICKS_TTL, tz=timezone.utc).isoformat(),
     }
     _picks_cache["data"] = result
     _picks_cache["ts"]   = now
     db_set("today_picks", result)
+
+    # 6. 회고용 스냅샷 저장 (best-effort, 실패해도 추천 결과는 반환)
+    try:
+        save_snapshot(result)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[today_picks] 스냅샷 저장 실패: {e}")
+
     return result

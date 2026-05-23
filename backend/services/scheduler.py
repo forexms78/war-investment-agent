@@ -520,6 +520,21 @@ async def refresh_today_picks():
         logger.error(f"❌ [scheduler] today_picks 갱신 실패: {e}")
 
 
+async def refresh_review_cycle():
+    """AI 추천 회고 — 매일 새벽 1회.
+      1. verify_past_predictions: 만기 도래(1d/7d/30d) 스냅샷의 hit/ret 판정
+      2. analyze_failures: 빗나간 케이스만 Gemini로 root_cause·avoid_rule 생성
+    실패 분석은 Gemini 호출 비용 절감을 위해 horizon당 최대 10건 cap."""
+    from backend.services.prediction_tracker import verify_past_predictions, analyze_failures
+    try:
+        v = await _run_sync(verify_past_predictions)
+        logger.info(f"✅ [scheduler] review verify 완료: {v}")
+        a = await _run_sync(analyze_failures)
+        logger.info(f"✅ [scheduler] review analyze 완료: {a}")
+    except Exception as e:
+        logger.error(f"❌ [scheduler] review_cycle 실패: {e}")
+
+
 async def send_telegram_morning():
     """텔레그램 오전 시황 (KST 07:00 = UTC 22:00)"""
     from backend.services.telegram_notifier import send_news_to_telegram
@@ -610,6 +625,8 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(refresh_etf_signals,       "interval", minutes=30, id="etf_signals",     max_instances=1)
     scheduler.add_job(refresh_daily_signal,     "interval", hours=6,  id="daily_signal",      max_instances=1)
     scheduler.add_job(refresh_today_picks,       "interval", hours=6,  id="today_picks",       max_instances=1)
+    # ── AI 추천 회고 — 매일 KST 07:00 (UTC 22:00) 검증 + 실패분석 ──
+    scheduler.add_job(refresh_review_cycle, CronTrigger(hour=22, minute=0, timezone="UTC"), id="review_cycle", max_instances=1)
     # ── 외국인 매매 종목 TOP(네이버) — KST 16:30 장 마감 후 1차 + 17:30 백업 (UTC 07:30 / 08:30) ──
     scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=7, minute=30, timezone="UTC"), id="foreign_flow",        max_instances=1)
     scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=8, minute=30, timezone="UTC"), id="foreign_flow_backup", max_instances=1)
