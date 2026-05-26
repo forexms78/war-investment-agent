@@ -101,6 +101,12 @@ def check_password(password: str) -> bool:
 # ── portfolio.md 파서 ──────────────────────────────────────────────────
 
 import re
+import time as _time
+
+_portfolio_cache: dict | None = None
+_portfolio_cache_ts: float = 0
+_PORTFOLIO_CACHE_TTL = 600  # 10분
+
 
 def _parse_money(s: str) -> float:
     """'₩13,829,258' 또는 '+₩411,061' → float"""
@@ -147,115 +153,192 @@ def _parse_table_rows(lines: list[str], start_idx: int) -> list[list[str]]:
     return rows
 
 
-def parse_portfolio() -> dict:
-    """portfolio.md → 구조화된 포트폴리오 JSON"""
-    raw = get_analysis_content("portfolio.md")
-    if not raw:
-        return {"error": "portfolio.md를 찾을 수 없습니다"}
-
-    content = raw["content"]
+def _parse_positions_from_md(content: str) -> tuple[list[dict], str]:
+    """새 포맷 portfolio.md (평단+수량) 파싱 → positions 리스트 + updated_at"""
     lines = content.split("\n")
+    positions = []
+    current_section = ""
+    updated_at = ""
 
-    result = {
-        "updated_at": "",
-        "summary": {"total_value": 0, "total_pnl": 0, "total_pnl_pct": 0, "holdings_count": 0},
-        "sections": [],
-    }
-
-    # 갱신일 추출
-    for line in lines:
-        m = re.search(r"최종 갱신:\s*(.+?)(?:\s*\(|$)", line)
-        if m:
-            result["updated_at"] = m.group(1).strip()
-            break
-
-    # 요약 테이블 파싱
-    for i, line in enumerate(lines):
-        if "총 평가금" in line:
-            cells = [c.strip() for c in line.split("|")[1:-1]]
-            if len(cells) >= 2:
-                result["summary"]["total_value"] = _parse_money(cells[1])
-        if "총 손익" in line:
-            cells = [c.strip() for c in line.split("|")[1:-1]]
-            if len(cells) >= 2:
-                val = cells[1]
-                pnl_match = re.search(r"([+-]?₩[\d,]+)", val)
-                pct_match = re.search(r"\(([+-]?[\d.]+%)\)", val)
-                if pnl_match:
-                    result["summary"]["total_pnl"] = _parse_money(pnl_match.group(1))
-                if pct_match:
-                    result["summary"]["total_pnl_pct"] = _parse_pct(pct_match.group(1))
-        if "종목 수" in line:
-            cells = [c.strip() for c in line.split("|")[1:-1]]
-            if len(cells) >= 2:
-                count_match = re.search(r"(\d+)", cells[1])
-                if count_match:
-                    result["summary"]["holdings_count"] = int(count_match.group(1))
-
-    # 섹션별 종목 파싱
-    section_headers = {
+    section_map = {
         "국내 주식": "kr_stocks",
         "국내 ETF": "kr_etf",
         "해외 개별주": "us_stocks",
         "해외 ETF": "us_etf",
     }
 
+    for line in lines:
+        # 갱신일
+        m = re.search(r"최종 갱신:\s*(.+?)(?:\s*\(|$)", line)
+        if m:
+            updated_at = m.group(1).strip()
+
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if not stripped.startswith("## "):
-            continue
-        title = stripped[3:].strip()
-        section_key = None
-        for label, key in section_headers.items():
-            if label in title:
-                section_key = key
-                break
-        if not section_key:
+        if stripped.startswith("## "):
+            title = stripped[3:].strip()
+            for label, key in section_map.items():
+                if label in title:
+                    current_section = key
+                    break
             continue
 
-        # 테이블 헤더 찾기
-        table_start = None
-        for j in range(i + 1, min(i + 5, len(lines))):
-            if lines[j].strip().startswith("| "):
-                table_start = j
-                break
-        if table_start is None:
+        if not current_section or not stripped.startswith("|"):
+            continue
+        if re.match(r"^\|[\s\-:]+\|", stripped):
+            continue
+        # 헤더 행 건너뛰기
+        if "종목" in stripped and "티커" in stripped:
             continue
 
-        header_cells = [c.strip() for c in lines[table_start].split("|")[1:-1]]
-        data_rows = _parse_table_rows(lines, table_start + 1)
+        cells = [c.strip() for c in stripped.split("|")[1:-1]]
+        if len(cells) < 4:
+            continue
 
-        holdings = []
-        for row in data_rows:
-            if len(row) < 4:
-                continue
-            holding = {"name": row[0]}
+        name = cells[0]
+        ticker = cells[1] if cells[1] != "-" else ""
+        qty = _parse_qty(cells[2])
+        avg_cost = _parse_money(cells[3])
 
-            has_ticker = "티커" in "".join(header_cells).lower() or "ticker" in "".join(header_cells).lower()
-            col = 1
+        if qty <= 0:
+            continue
 
-            if has_ticker and len(row) > 4:
-                holding["ticker"] = row[col]
-                col += 1
-            else:
-                holding["ticker"] = ""
-
-            holding["qty"] = _parse_qty(row[col]) if col < len(row) else 0
-            col += 1
-            holding["value"] = _parse_money(row[col]) if col < len(row) else 0
-            col += 1
-            holding["pnl"] = _parse_money(row[col]) if col < len(row) else 0
-            col += 1
-            holding["pnl_pct"] = _parse_pct(row[col]) if col < len(row) else 0
-
-            holdings.append(holding)
-
-        section_value = sum(h["value"] for h in holdings)
-        result["sections"].append({
-            "key": section_key,
-            "title": title,
-            "holdings": holdings,
-            "total_value": section_value,
+        positions.append({
+            "name": name,
+            "ticker": ticker,
+            "qty": qty,
+            "avg_cost": avg_cost,
+            "section": current_section,
         })
 
+    return positions, updated_at
+
+
+def _get_usd_krw() -> float:
+    """Supabase money_flow 캐시에서 환율 조회"""
+    try:
+        from backend.services.db_cache import db_get_stale
+        cached = db_get_stale("money_flow")
+        if cached and cached.get("korea_rates", {}).get("usd_krw"):
+            return float(cached["korea_rates"]["usd_krw"])
+    except Exception:
+        pass
+    return 1380.0  # 폴백
+
+
+def _fetch_current_price(ticker: str) -> float | None:
+    """단일 종목 현재가 조회 (financial.py 활용)"""
+    try:
+        from backend.services.financial import get_stock_data
+        data = get_stock_data(ticker, "30d")
+        if data and "current_price" in data and data["current_price"]:
+            return float(data["current_price"])
+    except Exception as e:
+        print(f"[mylab] 가격 조회 실패 {ticker}: {e}")
+    return None
+
+
+def parse_portfolio() -> dict:
+    """portfolio.md 파싱 + 실시간 가격 연동 → 포트폴리오 대시보드 JSON"""
+    global _portfolio_cache, _portfolio_cache_ts
+
+    now = _time.time()
+    if _portfolio_cache and now - _portfolio_cache_ts < _PORTFOLIO_CACHE_TTL:
+        return _portfolio_cache
+
+    raw = get_analysis_content("portfolio.md")
+    if not raw:
+        return {"error": "portfolio.md를 찾을 수 없습니다"}
+
+    positions, updated_at = _parse_positions_from_md(raw["content"])
+    if not positions:
+        return {"error": "포트폴리오 데이터를 파싱할 수 없습니다"}
+
+    usd_krw = _get_usd_krw()
+
+    # 섹션별 종목 구성
+    section_order = ["kr_stocks", "kr_etf", "us_stocks", "us_etf"]
+    section_titles = {
+        "kr_stocks": "국내 주식",
+        "kr_etf": "국내 ETF",
+        "us_stocks": "해외 개별주",
+        "us_etf": "해외 ETF",
+    }
+
+    sections_data: dict[str, list] = {k: [] for k in section_order}
+    total_value = 0.0
+    total_cost = 0.0
+
+    for pos in positions:
+        ticker = pos["ticker"]
+        section = pos["section"]
+        qty = pos["qty"]
+        avg_cost = pos["avg_cost"]
+        cost_total = avg_cost * qty
+
+        # 현재가 조회
+        current_price = None
+        current_value = cost_total  # 폴백: 매입가 기준
+
+        if ticker:
+            # 한국 종목이면 .KS 붙이기
+            api_ticker = f"{ticker}.KS" if section in ("kr_stocks", "kr_etf") and ticker.isdigit() else ticker
+            price = _fetch_current_price(api_ticker)
+            if price is not None:
+                current_price = price
+                if section in ("us_stocks", "us_etf"):
+                    current_value = price * usd_krw * qty
+                else:
+                    current_value = price * qty
+
+        pnl = current_value - cost_total
+        pnl_pct = (pnl / cost_total * 100) if cost_total > 0 else 0
+
+        holding = {
+            "name": pos["name"],
+            "ticker": ticker,
+            "qty": qty,
+            "avg_cost": avg_cost,
+            "current_price": current_price,
+            "value": round(current_value),
+            "pnl": round(pnl),
+            "pnl_pct": round(pnl_pct, 2),
+            "live": current_price is not None,
+        }
+
+        sections_data[section].append(holding)
+        total_value += current_value
+        total_cost += cost_total
+
+    # 결과 구성
+    sections = []
+    for key in section_order:
+        holdings = sections_data[key]
+        if not holdings:
+            continue
+        section_value = sum(h["value"] for h in holdings)
+        sections.append({
+            "key": key,
+            "title": section_titles[key],
+            "holdings": holdings,
+            "total_value": round(section_value),
+        })
+
+    total_pnl = total_value - total_cost
+    total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0
+
+    result = {
+        "updated_at": updated_at,
+        "usd_krw": usd_krw,
+        "summary": {
+            "total_value": round(total_value),
+            "total_pnl": round(total_pnl),
+            "total_pnl_pct": round(total_pnl_pct, 2),
+            "holdings_count": len(positions),
+        },
+        "sections": sections,
+    }
+
+    _portfolio_cache = result
+    _portfolio_cache_ts = now
     return result

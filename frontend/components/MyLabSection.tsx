@@ -10,9 +10,12 @@ interface Holding {
   name: string;
   ticker: string;
   qty: number;
+  avg_cost: number;
+  current_price: number | null;
   value: number;
   pnl: number;
   pnl_pct: number;
+  live: boolean;
 }
 
 interface Section {
@@ -24,6 +27,7 @@ interface Section {
 
 interface PortfolioData {
   updated_at: string;
+  usd_krw: number;
   summary: {
     total_value: number;
     total_pnl: number;
@@ -149,6 +153,7 @@ function HoldingRow({ h, onTickerClick }: { h: Holding; onTickerClick?: (t: stri
             {h.ticker}
           </button>
         )}
+        {!h.live && <span style={{ marginLeft: 6, fontSize: 9, color: "var(--text-muted)", opacity: 0.6 }}>offline</span>}
       </div>
       <div style={{ color: "var(--text-secondary)", textAlign: "right" }}>{h.qty % 1 === 0 ? h.qty : h.qty.toFixed(4)}</div>
       <div style={{ fontWeight: 600, color: "var(--text-primary)", textAlign: "right" }}>{fmtFull(h.value)}</div>
@@ -304,7 +309,7 @@ export default function MyLabSection() {
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>My Portfolio</h2>
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0" }}>
-            {portfolio.updated_at} 기준 / {summary.holdings_count}종목
+            실시간 / {summary.holdings_count}종목 / USD {portfolio.usd_krw.toLocaleString("ko-KR")}원
           </p>
         </div>
       </div>
