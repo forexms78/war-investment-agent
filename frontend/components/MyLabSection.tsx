@@ -1,123 +1,68 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnalysisFile, AnalysisContent } from "@/types";
 import { useT } from "@/contexts/LanguageContext";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 const AUTH_KEY = "mylab_auth";
 
-// ─── 간단 마크다운 렌더러 ─────────────────────────────────────────────────
-function renderMarkdown(md: string): string {
-  const lines = md.split("\n");
-  const out: string[] = [];
-  let inCodeBlock = false;
-  let inList = false;
+interface Holding {
+  name: string;
+  ticker: string;
+  qty: number;
+  value: number;
+  pnl: number;
+  pnl_pct: number;
+}
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+interface Section {
+  key: string;
+  title: string;
+  holdings: Holding[];
+  total_value: number;
+}
 
-    // 코드 블록
-    if (line.startsWith("```")) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      inCodeBlock = !inCodeBlock;
-      out.push(inCodeBlock ? '<pre style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12px;line-height:1.6;"><code>' : "</code></pre>");
-      continue;
-    }
-    if (inCodeBlock) { out.push(escapeHtml(line)); continue; }
+interface PortfolioData {
+  updated_at: string;
+  summary: {
+    total_value: number;
+    total_pnl: number;
+    total_pnl_pct: number;
+    holdings_count: number;
+  };
+  sections: Section[];
+}
 
-    // 가로줄
-    if (/^-{3,}$/.test(line.trim()) || /^\*{3,}$/.test(line.trim())) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push('<hr style="border:none;border-top:1px solid var(--border);margin:20px 0;" />');
-      continue;
-    }
+type SectionTab = "all" | "kr_stocks" | "kr_etf" | "us_stocks" | "us_etf";
 
-    // 제목
-    const h3 = line.match(/^###\s+(.+)/);
-    const h2 = line.match(/^##\s+(.+)/);
-    const h1 = line.match(/^#\s+(.+)/);
-    if (h1) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<h2 style="font-size:20px;font-weight:800;color:var(--text-primary);margin:28px 0 12px;letter-spacing:-0.02em;">${inlineFormat(h1[1])}</h2>`);
-      continue;
-    }
-    if (h2) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<h3 style="font-size:16px;font-weight:700;color:var(--text-primary);margin:22px 0 8px;">${inlineFormat(h2[1])}</h3>`);
-      continue;
-    }
-    if (h3) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<h4 style="font-size:14px;font-weight:700;color:var(--accent);margin:18px 0 6px;">${inlineFormat(h3[1])}</h4>`);
-      continue;
-    }
-
-    // 목록 항목
-    const listItem = line.match(/^[-*]\s+(.+)/);
-    if (listItem) {
-      if (!inList) { out.push('<ul style="margin:8px 0 8px 18px;list-style:disc;">'); inList = true; }
-      out.push(`<li style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin:3px 0;">${inlineFormat(listItem[1])}</li>`);
-      continue;
-    }
-
-    // 번호 목록
-    const numItem = line.match(/^\d+\.\s+(.+)/);
-    if (numItem) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push(`<p style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin:4px 0;">${inlineFormat(line)}</p>`);
-      continue;
-    }
-
-    // 빈 줄
-    if (line.trim() === "") {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push('<div style="margin:8px 0;"></div>');
-      continue;
-    }
-
-    // 일반 문단
-    if (inList) { out.push("</ul>"); inList = false; }
-    out.push(`<p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin:6px 0;">${inlineFormat(line)}</p>`);
+// ─── 유틸 ────────────────────────────────────────────────────────────────
+function fmtKrw(v: number): string {
+  if (Math.abs(v) >= 1_000_000) {
+    return (v / 10_000).toFixed(0) + "만";
   }
-
-  if (inList) out.push("</ul>");
-  return out.join("\n");
+  return v.toLocaleString("ko-KR");
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function fmtFull(v: number): string {
+  return v.toLocaleString("ko-KR");
 }
 
-function inlineFormat(s: string): string {
-  return s
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    // 굵게
-    .replace(/\*\*(.+?)\*\*/g, '<strong style="font-weight:700;color:var(--text-primary);">$1</strong>')
-    // 기울임
-    .replace(/\*(.+?)\*/g, '<em style="font-style:italic;">$1</em>')
-    // 인라인 코드
-    .replace(/`(.+?)`/g, '<code style="background:var(--bg-2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;">$1</code>')
-    // 링크
-    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:underline;">$1</a>');
+function pnlColor(v: number): string {
+  if (v > 0) return "var(--green)";
+  if (v < 0) return "var(--red)";
+  return "var(--text-muted)";
 }
 
 
 // ─── 비밀번호 게이트 ─────────────────────────────────────────────────────
-interface LockGateProps {
-  onUnlock: () => void;
-}
-
-function LockGate({ onUnlock }: LockGateProps) {
+function LockGate({ onUnlock }: { onUnlock: () => void }) {
   const { t } = useT();
   const [pw, setPw] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -146,15 +91,8 @@ function LockGate({ onUnlock }: LockGateProps) {
   }
 
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", minHeight: 320, gap: 16,
-    }}>
-      <div style={{
-        width: 48, height: 48, borderRadius: "50%",
-        background: "var(--accent-dim)", border: "1px solid var(--accent-glow)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 320, gap: 16 }}>
+      <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent-dim)", border: "1px solid var(--accent-glow)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -165,43 +103,11 @@ function LockGate({ onUnlock }: LockGateProps) {
         <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{t("mylab.lock.desc")}</div>
       </div>
       <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, flexDirection: "column", alignItems: "center", width: "100%", maxWidth: 320 }}>
-        <input
-          ref={inputRef}
-          type="password"
-          value={pw}
-          onChange={e => setPw(e.target.value)}
-          placeholder={t("mylab.lock.placeholder")}
-          style={{
-            width: "100%",
-            padding: "10px 14px",
-            background: "var(--bg-2)",
-            border: `1px solid ${error ? "var(--red)" : "var(--border)"}`,
-            borderRadius: 8,
-            fontSize: 14,
-            color: "var(--text-primary)",
-            outline: "none",
-          }}
-        />
-        {error && (
-          <div style={{ fontSize: 12, color: "var(--red)", alignSelf: "flex-start" }}>{error}</div>
-        )}
-        <button
-          type="submit"
-          disabled={loading || !pw.trim()}
-          style={{
-            width: "100%",
-            padding: "10px 0",
-            background: "var(--accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading || !pw.trim() ? 0.6 : 1,
-            transition: "opacity 0.15s",
-          }}
-        >
+        <input ref={inputRef} type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder={t("mylab.lock.placeholder")}
+          style={{ width: "100%", padding: "10px 14px", background: "var(--bg-2)", border: `1px solid ${error ? "var(--red)" : "var(--border)"}`, borderRadius: 8, fontSize: 14, color: "var(--text-primary)", outline: "none" }} />
+        {error && <div style={{ fontSize: 12, color: "var(--red)", alignSelf: "flex-start" }}>{error}</div>}
+        <button type="submit" disabled={loading || !pw.trim()}
+          style={{ width: "100%", padding: "10px 0", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading || !pw.trim() ? 0.6 : 1 }}>
           {loading ? "..." : t("mylab.lock.btn")}
         </button>
       </form>
@@ -210,141 +116,127 @@ function LockGate({ onUnlock }: LockGateProps) {
 }
 
 
-// ─── 분석 카드 ──────────────────────────────────────────────────────────
-interface AnalysisCardProps {
-  file: AnalysisFile;
-  onClick: () => void;
-}
-
-function AnalysisCard({ file, onClick }: AnalysisCardProps) {
-  const sizeKb = (file.size / 1024).toFixed(1);
-
+// ─── KPI 카드 ────────────────────────────────────────────────────────────
+function KpiCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: "18px 20px",
-        textAlign: "left",
-        cursor: "pointer",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        width: "100%",
-      }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--accent-glow)";
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 0 1px var(--accent-glow)";
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
-      }}
-    >
-      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6, lineHeight: 1.3 }}>
-        {file.title}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace" }}>
-        {file.name}
-        <span style={{ marginLeft: 10, color: "var(--text-muted)", opacity: 0.7 }}>{sizeKb} KB</span>
-      </div>
-    </button>
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px", flex: 1, minWidth: 160 }}>
+      <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.04em", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: color || "var(--text-primary)", letterSpacing: "-0.02em" }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: color || "var(--text-secondary)", marginTop: 4 }}>{sub}</div>}
+    </div>
   );
 }
 
 
-// ─── 마크다운 모달 ───────────────────────────────────────────────────────
-interface ContentModalProps {
-  file: AnalysisFile;
-  onClose: () => void;
+// ─── 종목 행 ─────────────────────────────────────────────────────────────
+function HoldingRow({ h, onTickerClick }: { h: Holding; onTickerClick?: (t: string) => void }) {
+  const color = pnlColor(h.pnl);
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1.8fr 0.7fr 1.2fr 1.2fr 0.8fr",
+      alignItems: "center",
+      padding: "12px 16px",
+      borderBottom: "1px solid var(--border)",
+      fontSize: 13,
+    }}>
+      <div>
+        <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{h.name}</span>
+        {h.ticker && (
+          <button
+            onClick={() => onTickerClick?.(h.ticker)}
+            style={{ marginLeft: 8, fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", fontFamily: "monospace" }}>
+            {h.ticker}
+          </button>
+        )}
+      </div>
+      <div style={{ color: "var(--text-secondary)", textAlign: "right" }}>{h.qty % 1 === 0 ? h.qty : h.qty.toFixed(4)}</div>
+      <div style={{ fontWeight: 600, color: "var(--text-primary)", textAlign: "right" }}>{fmtFull(h.value)}</div>
+      <div style={{ fontWeight: 600, color, textAlign: "right" }}>
+        {h.pnl >= 0 ? "+" : ""}{fmtKrw(h.pnl)}
+      </div>
+      <div style={{
+        fontWeight: 700, color, textAlign: "right",
+        background: `${color}12`, borderRadius: 4, padding: "2px 6px",
+        display: "inline-block", marginLeft: "auto",
+      }}>
+        {h.pnl_pct >= 0 ? "+" : ""}{h.pnl_pct.toFixed(1)}%
+      </div>
+    </div>
+  );
 }
 
-function ContentModal({ file, onClose }: ContentModalProps) {
-  const { t } = useT();
-  const [content, setContent] = useState<AnalysisContent | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    setError(false);
-    fetch(`${API}/mylab/analyses/${encodeURIComponent(file.path)}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(setContent)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [file]);
-
-  // ESC 닫기
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
+// ─── 섹션 테이블 ─────────────────────────────────────────────────────────
+function SectionTable({ section, onTickerClick }: { section: Section; onTickerClick?: (t: string) => void }) {
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 300,
-        background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "24px 16px",
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          borderRadius: 16,
-          width: "100%",
-          maxWidth: 780,
-          maxHeight: "85vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* 모달 헤더 */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 24px",
-          borderBottom: "1px solid var(--border)",
-          flexShrink: 0,
-        }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{file.title}</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "monospace", marginTop: 2 }}>{file.name}</div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "var(--bg-2)", border: "1px solid var(--border)",
-              borderRadius: 8, padding: "6px 14px",
-              fontSize: 12, fontWeight: 600, color: "var(--text-secondary)",
-              cursor: "pointer",
-            }}
-          >
-            {t("mylab.close")}
-          </button>
-        </div>
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{section.title}</span>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{section.holdings.length}종목 / {fmtKrw(section.total_value)}원</span>
+      </div>
+      {/* 헤더 */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1.8fr 0.7fr 1.2fr 1.2fr 0.8fr",
+        padding: "8px 16px",
+        borderBottom: "1px solid var(--border)",
+        fontSize: 11,
+        color: "var(--text-muted)",
+        fontWeight: 600,
+        letterSpacing: "0.02em",
+      }}>
+        <div>종목</div>
+        <div style={{ textAlign: "right" }}>수량</div>
+        <div style={{ textAlign: "right" }}>평가금</div>
+        <div style={{ textAlign: "right" }}>손익</div>
+        <div style={{ textAlign: "right" }}>수익률</div>
+      </div>
+      {section.holdings.map((h, i) => (
+        <HoldingRow key={`${h.name}-${i}`} h={h} onTickerClick={onTickerClick} />
+      ))}
+    </div>
+  );
+}
 
-        {/* 모달 바디 */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-          {loading && (
-            <div style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("mylab.content.loading")}</div>
-          )}
-          {error && (
-            <div style={{ color: "var(--red)", fontSize: 13 }}>{t("mylab.content.error")}</div>
-          )}
-          {content && (
-            <div
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(content.content) }}
-              style={{ lineHeight: 1.8 }}
-            />
-          )}
-        </div>
+
+// ─── 배분 바 ─────────────────────────────────────────────────────────────
+const SECTION_COLORS: Record<string, string> = {
+  kr_stocks: "#3b82f6",
+  kr_etf: "#8b5cf6",
+  us_stocks: "#10b981",
+  us_etf: "#f59e0b",
+};
+
+const SECTION_LABELS: Record<string, string> = {
+  kr_stocks: "국내 주식",
+  kr_etf: "국내 ETF",
+  us_stocks: "해외 개별주",
+  us_etf: "해외 ETF",
+};
+
+function AllocationBar({ sections, total }: { sections: Section[]; total: number }) {
+  if (total === 0) return null;
+  return (
+    <div style={{ marginBottom: 24 }}>
+      {/* 바 */}
+      <div style={{ display: "flex", height: 10, borderRadius: 6, overflow: "hidden", marginBottom: 10 }}>
+        {sections.map(s => (
+          <div key={s.key} style={{ width: `${(s.total_value / total) * 100}%`, background: SECTION_COLORS[s.key] || "#666" }} />
+        ))}
+      </div>
+      {/* 범례 */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        {sections.map(s => {
+          const pct = ((s.total_value / total) * 100).toFixed(1);
+          return (
+            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, background: SECTION_COLORS[s.key] || "#666" }} />
+              <span style={{ color: "var(--text-secondary)" }}>{SECTION_LABELS[s.key] || s.title}</span>
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{pct}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -355,91 +247,106 @@ function ContentModal({ file, onClose }: ContentModalProps) {
 export default function MyLabSection() {
   const { t } = useT();
   const [unlocked, setUnlocked] = useState(false);
-  const [files, setFiles] = useState<AnalysisFile[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [selected, setSelected] = useState<AnalysisFile | null>(null);
+  const [activeTab, setActiveTab] = useState<SectionTab>("all");
 
-  // localStorage에서 인증 상태 복구
   useEffect(() => {
-    if (localStorage.getItem(AUTH_KEY) === "1") {
-      setUnlocked(true);
-    }
+    if (localStorage.getItem(AUTH_KEY) === "1") setUnlocked(true);
   }, []);
 
-  // 인증 후 파일 목록 로드
   useEffect(() => {
     if (!unlocked) return;
     setLoading(true);
     setError(false);
-    fetch(`${API}/mylab/analyses`)
+    fetch(`${API}/mylab/portfolio`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => setFiles(data.files || []))
+      .then(setPortfolio)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [unlocked]);
 
-  if (!unlocked) {
-    return (
-      <div className="fade-in">
-        <LockGate onUnlock={() => setUnlocked(true)} />
-      </div>
-    );
-  }
+  if (!unlocked) return <div className="fade-in"><LockGate onUnlock={() => setUnlocked(true)} /></div>;
+
+  if (loading) return (
+    <div className="fade-in" style={{ padding: "60px 0", textAlign: "center", color: "var(--text-muted)" }}>
+      {t("mylab.loading")}
+    </div>
+  );
+
+  if (error || !portfolio) return (
+    <div className="fade-in" style={{ padding: "60px 0", textAlign: "center", color: "var(--red)" }}>
+      {t("mylab.error")}
+    </div>
+  );
+
+  const { summary, sections } = portfolio;
+  const pnlSign = summary.total_pnl >= 0 ? "+" : "";
+  const pnlColor_ = pnlColor(summary.total_pnl);
+
+  const tabs: { id: SectionTab; label: string }[] = [
+    { id: "all", label: "전체" },
+    { id: "us_stocks", label: "해외 개별주" },
+    { id: "us_etf", label: "해외 ETF" },
+    { id: "kr_stocks", label: "국내 주식" },
+    { id: "kr_etf", label: "국내 ETF" },
+  ];
+
+  const visibleSections = activeTab === "all"
+    ? sections
+    : sections.filter(s => s.key === activeTab);
 
   return (
     <div className="fade-in">
-      {/* 섹션 헤더 */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
-          My Lab
-        </h2>
-        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          stock78 / analyses
-        </p>
+      {/* 헤더 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>My Portfolio</h2>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0" }}>
+            {portfolio.updated_at} 기준 / {summary.holdings_count}종목
+          </p>
+        </div>
       </div>
 
-      {/* 상태별 렌더 */}
-      {loading && (
-        <div style={{ color: "var(--text-muted)", fontSize: 13, padding: "40px 0", textAlign: "center" }}>
-          {t("mylab.loading")}
-        </div>
-      )}
+      {/* KPI */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+        <KpiCard label="총 평가금" value={`${fmtKrw(summary.total_value)}원`} />
+        <KpiCard
+          label="총 손익"
+          value={`${pnlSign}${fmtKrw(summary.total_pnl)}원`}
+          sub={`${pnlSign}${summary.total_pnl_pct.toFixed(1)}%`}
+          color={pnlColor_}
+        />
+        <KpiCard label="종목 수" value={`${summary.holdings_count}`} sub="국내 3 / 해외 18" />
+      </div>
 
-      {error && (
-        <div style={{ color: "var(--red)", fontSize: 13, padding: "40px 0", textAlign: "center" }}>
-          {t("mylab.error")}
-        </div>
-      )}
+      {/* 배분 바 */}
+      <AllocationBar sections={sections} total={summary.total_value} />
 
-      {!loading && !error && files.length === 0 && (
-        <div style={{
-          padding: "48px 24px", textAlign: "center",
-          color: "var(--text-muted)", fontSize: 13, lineHeight: 1.8,
-        }}>
-          {t("mylab.empty")}
-        </div>
-      )}
+      {/* 탭 */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto" }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              background: activeTab === tab.id ? "var(--accent-dim)" : "transparent",
+              border: activeTab === tab.id ? "1px solid var(--accent-glow)" : "1px solid transparent",
+              borderRadius: 8, padding: "6px 14px",
+              color: activeTab === tab.id ? "var(--accent)" : "var(--text-secondary)",
+              cursor: "pointer", fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400,
+              whiteSpace: "nowrap",
+            }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      {!loading && !error && files.length > 0 && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 12,
-        }}>
-          {files.map(f => (
-            <AnalysisCard
-              key={f.sha}
-              file={f}
-              onClick={() => setSelected(f)}
-            />
-          ))}
-        </div>
-      )}
-
-      {selected && (
-        <ContentModal file={selected} onClose={() => setSelected(null)} />
-      )}
+      {/* 종목 테이블 */}
+      {visibleSections.map(s => (
+        <SectionTable key={s.key} section={s} />
+      ))}
     </div>
   );
 }

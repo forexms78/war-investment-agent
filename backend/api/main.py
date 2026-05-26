@@ -837,6 +837,13 @@ async def mylab_auth(request: Request):
     raise HTTPException(status_code=401, detail="비밀번호가 틀렸습니다")
 
 
+@app.get("/mylab/portfolio")
+async def mylab_portfolio():
+    """portfolio.md 파싱 → 구조화된 포트폴리오 대시보드 데이터"""
+    from backend.services.mylab import parse_portfolio
+    return await _run(parse_portfolio)
+
+
 @app.get("/mylab/analyses")
 async def mylab_list():
     """stock78/analyses/ 폴더 MD 파일 목록"""
