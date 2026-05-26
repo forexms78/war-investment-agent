@@ -628,8 +628,8 @@ def create_scheduler() -> AsyncIOScheduler:
     # ── AI 추천 회고 — 매일 KST 07:00 (UTC 22:00) 검증 + 실패분석 ──
     scheduler.add_job(refresh_review_cycle, CronTrigger(hour=22, minute=0, timezone="UTC"), id="review_cycle", max_instances=1)
     # ── 외국인 매매 종목 TOP(네이버) — KST 16:30 장 마감 후 1차 + 17:30 백업 (UTC 07:30 / 08:30) ──
-    scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=7, minute=30, timezone="UTC"), id="foreign_flow",        max_instances=1)
-    scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=8, minute=30, timezone="UTC"), id="foreign_flow_backup", max_instances=1)
+    scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=7, minute=30, timezone="UTC"), id="foreign_flow",        max_instances=1, misfire_grace_time=7200)
+    scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=8, minute=30, timezone="UTC"), id="foreign_flow_backup", max_instances=1, misfire_grace_time=7200)
     # ── 예측 정확도 평가 — KST 18:30 장 마감 1시간 후 (UTC 09:30) ──
     scheduler.add_job(evaluate_predictions, CronTrigger(hour=9, minute=30, timezone="UTC"), id="evaluate_predictions", max_instances=1)
     # ── 텔레그램 뉴스 발송 — KST 07:00 / 12:00 / 18:00 (UTC 22:00 / 03:00 / 09:00) ──
