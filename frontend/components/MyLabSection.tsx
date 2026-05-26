@@ -268,12 +268,12 @@ function ContentModal({ file, onClose }: ContentModalProps) {
   useEffect(() => {
     setLoading(true);
     setError(false);
-    fetch(`${API}/mylab/analyses/${encodeURIComponent(file.name)}`)
+    fetch(`${API}/mylab/analyses/${encodeURIComponent(file.path)}`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
       .then(setContent)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [file.name]);
+  }, [file]);
 
   // ESC 닫기
   useEffect(() => {

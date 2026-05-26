@@ -292,6 +292,7 @@ export interface ETFSignalsData {
 // My Lab
 export interface AnalysisFile {
   name: string;
+  path: string;
   title: string;
   sha: string;
   size: number;
