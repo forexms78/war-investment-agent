@@ -17,6 +17,7 @@ import HeroSection from "@/components/HeroSection";
 import PilotsSection from "@/components/PilotsSection";
 import TopPerformersSection from "@/components/TopPerformersSection";
 import Tooltip from "@/components/Tooltip";
+import MyLabSection from "@/components/MyLabSection";
 import { useT } from "@/contexts/LanguageContext";
 
 // 클릭 시점에만 chunk 로드 — 초기 번들 크기 축소
@@ -26,7 +27,7 @@ const ForeignFlowSection   = dynamic(() => import("@/components/ForeignFlowSecti
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "signal" | "markets" | "etfstocks" | "foreign";
+type Tab = "signal" | "markets" | "etfstocks" | "foreign" | "mylab";
 type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds";
 
 function fmtTime(d: Date) {
@@ -160,6 +161,7 @@ export default function Home() {
     { id: "markets",   label: t("tab.markets")   },
     { id: "etfstocks", label: t("tab.etfstocks") },
     { id: "foreign",   label: t("tab.foreign")   },
+    { id: "mylab",     label: t("tab.mylab")     },
   ];
 
   const FED_TOOLTIP = t("tooltip.fed");
@@ -455,6 +457,10 @@ export default function Home() {
           <div className="fade-in">
             <ForeignFlowSection />
           </div>
+        )}
+
+        {activeTab === "mylab" && (
+          <MyLabSection />
         )}
       </main>
 

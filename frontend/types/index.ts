@@ -287,3 +287,19 @@ export interface ETFSignalsData {
   kr_stocks: ETFSignalItem[];
   updated_at: string | null;
 }
+
+
+// My Lab
+export interface AnalysisFile {
+  name: string;
+  title: string;
+  sha: string;
+  size: number;
+}
+
+export interface AnalysisContent {
+  name: string;
+  title: string;
+  content: string;
+  sha: string;
+}

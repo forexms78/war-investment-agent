@@ -3,7 +3,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.services.investors import get_investor
@@ -821,3 +821,35 @@ async def review_weekly_trend():
     return {"items": rows, "count": len(rows)}
 
 
+
+# ─────────────────────────────────────────────
+# My Lab (GitHub stock78 분석 파일 연동)
+# ─────────────────────────────────────────────
+
+@app.post("/mylab/auth")
+async def mylab_auth(request: Request):
+    """My Lab 비밀번호 인증 — MYLAB_PASSWORD 환경변수와 비교"""
+    from backend.services.mylab import check_password
+    body = await request.json()
+    pw = body.get("password", "")
+    if check_password(pw):
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="비밀번호가 틀렸습니다")
+
+
+@app.get("/mylab/analyses")
+async def mylab_list():
+    """stock78/analyses/ 폴더 MD 파일 목록"""
+    from backend.services.mylab import list_analyses
+    files = await _run(list_analyses)
+    return {"files": files}
+
+
+@app.get("/mylab/analyses/{filename}")
+async def mylab_content(filename: str):
+    """특정 분석 MD 파일 내용 반환"""
+    from backend.services.mylab import get_analysis_content
+    result = await _run(get_analysis_content, filename)
+    if result is None:
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+    return result
