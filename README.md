@@ -21,6 +21,7 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 | 버전 | 날짜 | 내용 |
 |------|------|------|
+| v3.5 | 2026-05-27 | **ETF 중심 전면 개편 + Signal 탭 제거.** 메인 랜딩을 ETF·주식 탭으로 전환(기존 Whale Signal/DailySignal 탭 완전 제거). ETF 탭을 미장 ETF/국장 ETF/미장 주식/국장 주식 4그룹으로 분리, AUM(운용자산) 기준 시총 순위 정렬. ETF 카드에 7일/1개월/6개월/1년 등락률 배지 표시. **ETF 홀딩스 모달 신규** — ETF 클릭 시 Yahoo Finance topHoldings API로 편입 종목 비중 수평 바 차트 + 섹터 도넛 차트 표시, 편입 종목별 현재가·1일·7일·1개월·6개월 등락률 테이블(v8 chart 6mo 일봉 기반 계산, 병렬 조회). ETF 자체 등락률(7d~1Y) 모달 헤더에 표시. Backend: `GET /etf-holdings/{ticker}`(24h DB 캐시), `etf_signals.py`에 Yahoo v7 배치 AUM 조회 + `change_7d`/`change_6m` 필드 추가. HeroSection을 ETF 1Y 평균 수익률 기반으로 전환, DailySignalSection·RecommendSection import 및 `/daily-signal` API fetch 제거 |
 | v3.4.1 | 2026-05-26 | **외국인 매매동향 스케줄러 안정화** — `refresh_foreign_flow` CronTrigger(KST 16:30/17:30)에 `misfire_grace_time=7200` 추가. Render Free Tier sleep 상태에서 UptimeRobot이 깨운 뒤에도 APScheduler 기본 grace time(1초) 초과로 job이 스킵되던 문제 해결. 2시간 유효 윈도우로 데이터 수집 성공률 대폭 향상 |
 | v3.4 | 2026-05-26 | **My Lab — 실시간 포트폴리오 대시보드 신규**. `backend/services/mylab.py` 신규(GitHub API로 private repo `forexms78/stock78` 연동, 서버사이드 `MYLAB_PASSWORD` 인증, 경로 순회 방지). **포트폴리오 파서**: `portfolio.md`(평단가+수량 포맷)를 파싱하여 구조화 JSON 변환, `financial.py`의 `get_stock_data()`로 21종목 현재가 실시간 fetch — 한국 종목 `.KS` 접미사 자동 변환, 해외 종목은 USD 가격 x `money_flow` 캐시 환율(KRW/USD)로 원화 환산, 손익/수익률 자동 계산(10분 메모리 캐시). API 5개: `POST /mylab/auth`(인증), `GET /mylab/portfolio`(실시간 대시보드), `GET /mylab/analyses`(분석 파일 목록), `GET /mylab/analyses/{filename}`(파일 내용). 프론트 `MyLabSection.tsx` — 잠금 게이트(localStorage 상태 유지), KPI 카드 3종(총 평가금·총 손익·종목 수), 자산배분 바(국내 주식·국내 ETF·해외 개별주·해외 ETF 색상 구분), 카테고리 탭 필터, 종목 테이블(수익률 녹/적 색상 코딩, live/offline 표시), 환율 헤더. `GITHUB_TOKEN`(stock78 읽기 PAT)·`MYLAB_PASSWORD` 환경변수 필요 |
 | v3.3 | 2026-05-23 | **AI 추천 회고·자기학습 루프 신규** — 비대칭 학습 구조(맞은 추천은 통계만, 빗나간 추천만 Gemini 심층 분석). Supabase 마이그레이션 `backend/migrations/0001_review_tracking.sql` 신규 — `prediction_snapshots`(추천 시점 진입가·모멘텀·감성·거래량·raw_score·AI 이유 + 1d/7d/30d 검증 결과 컬럼), `failure_analyses`(snapshot_id FK, horizon, failure_category, root_cause, avoid_rule, severity 1~5), `v_weekly_hit_rate` 뷰. `backend/services/prediction_tracker.py` 신규 — `save_snapshot`/`verify_past_predictions`(만기 도래 1d/7d/30d hit 판정, 적중기준은 buy ret>0 · sell ret<0 · watch \|ret\|≥1%)/`analyze_failures`(빗나간 케이스만 Gemini로 카테고리·원인·회피규칙 생성, horizon당 최대 10건 cap)/`get_active_failure_patterns`(최근 30일 빈도×severity Top 3 + 회피 규칙). `today_picks.py` 수정 — `_gemini_reason`에 `lesson_block` 파라미터 추가, `_build_card`에 raw_score·final_score·matched_patterns 필드 추가, raw_score × 0.7^N 페널티(매칭된 회피 패턴 수), 결과 저장 직후 `save_snapshot` 호출. `scheduler.py`에 `refresh_review_cycle` 잡 추가 — 매일 KST 07:00(UTC 22:00) verify + analyze 순차 실행. API 신규 5개 — `/review/summary`(통산 적중률·평균수익률·이번주 vs 지난주 변화량), `/review/snapshots?limit=60`(추천 이력), `/review/failures?limit=15`(실패 분석 + snapshot JOIN), `/review/lessons`(Top 3 + 전체 활성 규칙), `/review/weekly-trend`(주간 추이 26주). 프론트 `app/review/page.tsx` 신규 — KPI 4종, 이번주 vs 지난주 변화량 카드, recharts 주간 적중률 라인차트(1d/7d/30d 3선), 빗나간 픽 카드 + AI 학습 로그 타임라인 2:1 그리드, 적용 중 회피 규칙 Top 3 박스, 맞춘 추천 간단 리스트. 진입점은 직접 URL `/review` (dashboard 헤더 링크 추가는 후속 sprint) |
@@ -69,17 +70,25 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 ## 어떤 정보를 보여주는가
 
-매일 Gemini 2.5 Flash가 글로벌 뉴스 20개를 읽고 오늘 시장을 가장 크게 움직이는 뉴스 3개를 골라 bullish / bearish / mixed 판단과 함께 자산별 영향을 한 문장으로 요약한다. 여기에 **Daily Signal** — 슈퍼 투자자 13F · ETF 기술적 신호 · 외국인 매매 · 마켓 드라이버 · Fed 금리 환경을 종합한 매수 5종 / 매도 5종 / Watch 5종 추천이 confidence 점수와 함께 붙는다 (6시간 주기 갱신).
+대시보드를 열면 가장 먼저 보이는 것은 ETF 포트폴리오 평균 수익률과 마켓 드라이버다. Gemini 2.5 Flash가 글로벌 뉴스 20개 중 오늘 시장을 가장 크게 움직이는 3개를 골라 bullish / bearish / mixed로 판단한다.
+
+그 아래에 **미장 ETF / 국장 ETF**가 AUM(운용자산) 순위로 정렬된다. 각 ETF 카드에는 7일·1개월·6개월·1년 등락률이 한눈에 표시되고, RSI·52주 위치·추세 판정·Gemini AI 종합 시그널(STRONG_BUY ~ STRONG_SELL)이 붙는다.
+
+ETF를 클릭하면 편입 종목이 펼쳐진다. 바 차트로 어떤 종목이 몇 % 들어있는지, 도넛 차트로 섹터 비중이 어떻게 구성되어 있는지 확인할 수 있다. 아래 테이블에서는 각 편입 종목의 현재가와 1일·7일·1개월·6개월 등락률을 볼 수 있고, 종목을 클릭하면 상세 모달로 넘어간다.
 
 ```mermaid
 flowchart LR
-    A["📰 Google News RSS\n글로벌 헤드라인 20개"] --> B["🧠 Gemini 2.5 Flash\n오늘 핵심 뉴스 3선"]
-    B --> C["📊 실시간 데이터\n주식 · ETF · 코인 · 외국인 매매"]
-    C --> D["💡 Daily Signal\nBuy 5 · Sell 5 · Watch 5\n(confidence 0~100)"]
-    D --> E["📱 통합 대시보드\n뉴스 · ETF · 주식 · 외국인 · 자금흐름"]
+    A["Google News RSS\n글로벌 20개"] --> B["Gemini 2.5 Flash\n핵심 뉴스 3선"]
+    B --> C["마켓 드라이버\nbullish / bearish / mixed"]
+
+    D["Yahoo Finance\n1년 일봉 + AUM"] --> E["기술적 지표\nRSI / MA / 52주 / 추세"]
+    E --> F["Gemini 배치 판정\n34종 일괄"]
+    F --> G["ETF 시그널 카드\n시총 순위 + 등락률"]
+
+    G -->|"클릭"| H["ETF 홀딩스 모달\n편입 종목 비중 차트\n+ 종목별 등락률"]
 ```
 
-주식 탭에서는 Warren Buffett, Cathie Wood, Michael Burry 등 8인의 슈퍼 투자자 포트폴리오를 추적한다. 복수의 투자자가 동시에 매수 중인 종목은 자동 집계되어 추천 신호로 표시된다.
+마켓 탭에서는 Warren Buffett, Cathie Wood, Michael Burry 등 8인의 슈퍼 투자자 포트폴리오를 추적한다. 외국인 매매 탭에서는 KOSPI·KOSDAQ 외국인 순매수·순매도 TOP 종목을 확인할 수 있다.
 
 | 투자자 | 소속 | 스타일 |
 |--------|------|--------|
@@ -94,82 +103,39 @@ flowchart LR
 
 ---
 
-## 추천은 어떻게 만들어지나
+## ETF 시그널은 어떻게 만들어지나
 
-매수/매도/Watch 추천은 단일 신호로 만들지 않는다. 슈퍼 투자자 13F 포지션·ETF 기술적 신호·외국인 매매 동향·뉴스 마켓 드라이버·Fed 금리 환경, 다섯 가지 데이터 소스를 6시간 주기 스케줄러가 모아 Gemini 2.5 Flash에 한 번에 던진다. Gemini는 "여러 신호가 동시에 겹치는 종목"을 우선 골라 confidence 0~100 점수와 함께 buy 5개·sell 5개·focus(Watch) 5개를 반환한다.
+ETF·주식 매수/매도 타이밍은 기술적 지표 + AI 종합 판정으로 결정된다. 스케줄러가 30분마다 미장 ETF 11종·한국 ETF 6종·미국 주식 12종·한국 주식 12종, 총 41종의 1년 일봉 데이터를 Yahoo Finance와 KIS Open API에서 수집한다.
+
+수집된 종가 데이터로 5가지 기술적 지표를 계산한다 — RSI(14), 52주 고저 위치, 50/200일 이동평균, 골든크로스 여부, 1주~1년 수익률. 이 지표를 Gemini 2.5 Flash에 41종 일괄로 던져 STRONG_BUY / BUY / HOLD / SELL / STRONG_SELL 판정과 한 줄 근거를 받는다.
 
 ```mermaid
 flowchart LR
-    A1["슈퍼 투자자 13F<br/>investors.py"] --> G
-    A2["ETF·주식 기술적 신호<br/>RSI · MA · 골든크로스"] --> G
-    A3["외국인 매매 TOP<br/>네이버 + KIS"] --> G
-    A4["마켓 뉴스 드라이버<br/>Google News + Gemini"] --> G
-    A5["Fed 금리 환경<br/>FRED"] --> G
-    G["Gemini 2.5 Flash<br/>여러 신호 겹침 우선"]
-    G --> R1["Buy 5"]
-    G --> R2["Sell 5"]
-    G --> R3["Watch 5"]
+    A["Yahoo Finance + KIS\n41종 1년 일봉"] --> B["기술적 지표 계산\nRSI / MA50 / MA200\n52주 위치 / 골든크로스"]
+    B --> C["Gemini 2.5 Flash\n41종 배치 1회 호출"]
+    C --> D["ABCE 보정\n추세 가드 + 안전성"]
+    D --> E["시그널 카드\nSTRONG_BUY ~ STRONG_SELL"]
 ```
 
-### 슈퍼 투자자 8인 — 왜 이 사람들인가
+AI 판정 이후 ABCE 보정이 한 단계 더 걸린다. 강세장에서 평균회귀 시그널이 너무 일찍 매도 신호를 내는 약점을 보강하기 위해, MARKUP 추세 + 안전 구간이면 매도 시그널을 한 단계 약화하고, DANGER 과열 구간이면 매수 시그널을 한 단계 강화한다.
 
-선정 기준은 **SEC 13F 의무 공시 대상 + 시장에서 검증된 트랙 레코드**다. 미국 SEC는 AUM 1억 달러 이상 기관 투자가에게 분기마다 보유 종목 공개를 의무화한다. 8인은 모두 이 13F로 포트폴리오가 공식 추적된다.
+### ETF 홀딩스 — 클릭하면 안이 보인다
 
-| 투자자 | 운용 자산 | 검증된 트랙 레코드 |
-|------|------|------|
-| Warren Buffett | Berkshire ~$300B | 50년 이상 S&P 500 초과 수익 |
-| Cathie Wood | ARK ~$15B | TSLA·NVDA 초기 매수, 5~10배 수익 |
-| Michael Burry | Scion ~$200M | 2008 서브프라임 공매도 ($7억) — 영화 '빅쇼트' 주인공 |
-| Ray Dalio | Bridgewater ~$140B | 세계 최대 헤지펀드, All Weather 포트폴리오 창시자 |
-| Stanley Druckenmiller | Duquesne ~$10B | 1992 영국 파운드 공매도, 30년 연 30%+ 무손실 |
-| Bill Ackman | Pershing Square ~$15B | 2020 코로나 CDS 헤지 ($26억), 행동주의 |
-| George Soros | Soros Fund ~$25B | 1992 영국 파운드화 붕괴 ($10억) |
-| David Tepper | Appaloosa ~$15B | 2009 부실 은행주 매수 ($74억), 이벤트 드리븐 |
+ETF는 여러 종목을 하나로 묶은 상품이다. QQQ를 클릭하면 AAPL 8.9%, MSFT 8.1%, NVDA 7.5% 같은 편입 비중이 바 차트로 펼쳐진다. 섹터 도넛 차트로 Technology 51%, Communication 15% 같은 구성도 한눈에 확인된다.
 
-샘 알트먼 같은 VC·테크 거물은 의도적으로 빠져있다. 13F는 *공모 시장 주식*만 공시하는데 그는 OpenAI(미상장)·Stripe 같은 VC 투자가 메인이라 공개 시장 추적이 불가능하다. 13F 외 인물을 넣으면 데이터 출처 일관성이 깨지고 검증할 수 없어 제외했다.
+그 아래 테이블에서는 편입 종목 하나하나의 현재가와 1일·7일·1개월·6개월 등락률을 볼 수 있다. "QQQ가 올랐는데 안에서 어떤 종목이 끌어올린 거지?"를 바로 확인할 수 있다. 종목을 클릭하면 상세 모달(5기간 차트·재무·애널리스트 컨센서스)로 넘어간다.
 
-13F는 분기 1회·**45일 지연 공시**라는 한계가 있다. 따라서 슈퍼 투자자 신호만으로는 단기 매수 타이밍에 부족하고, 그래서 ETF 기술적 신호(실시간)와 외국인 매매(일 단위)를 함께 본다.
+Yahoo Finance v10 topHoldings API로 편입 종목과 섹터 비중을, v8 chart API로 각 종목의 6개월 일봉을 병렬 조회해 등락률을 계산한다. 24시간 DB 캐시로 반복 조회 시 즉시 응답한다.
 
-### 5가지 신호와 가중치
+### 시그널 판정 기준
 
-각 신호는 Gemini가 받기 전에 백엔드에서 미리 정제된다. confidence 점수는 fallback 응답(Gemini 호출 실패 시) 기준 공식이고, 정상 응답에서는 Gemini가 자체 판단해 매긴다.
-
-| 신호 | 산출 방식 | confidence 기여 |
-|------|----------|:---:|
-| `investor_buy` | 슈퍼 투자자 **2명 이상** 같은 종목 매수 (`len(buyers) >= 2`) | `60 + buyers×8` (cap 95) |
-| `investor_sell` | 슈퍼 투자자 1명 이상 매도 | `55 + sellers×10` (cap 90) |
-| `etf_strong_buy` | RSI ≤ 30 + 52주 35%↓, 또는 골든크로스 직후 | 단독 65~75 |
-| `etf_buy` | RSI 30~45, 상승 추세 진입 | 단독 60~70 |
-| `etf_sell` / `etf_strong_sell` | RSI ≥ 55/75 + 52주 95%↑ + ABCE DANGER 등급 | 매도 카드 가산 |
-| `foreign_buy` / `foreign_sell` | KOSPI/KOSDAQ 외국인 순매수/매도 TOP 5 (KIS 직결) | focus_list 진입↑ |
-| `news_impact` | 마켓 드라이버 뉴스 3개 중 해당 종목 직접 언급 | 매크로 컨텍스트 |
-
-**1명 단독 매수는 추천 후보에서 탈락한다**. 슈퍼 투자자 시그널의 노이즈 차단 장치다. 2명부터 풀에 진입하고, 이후 매수자 수에 비례해 confidence가 가산된다.
-
-```mermaid
-xychart-beta
-    title "신호 갯수별 confidence (실측 패턴)"
-    x-axis ["1개 신호", "2개 겹침", "3개 이상"]
-    y-axis "Confidence" 0 --> 100
-    bar [65, 87, 93]
-```
-
-### 종목 universe
-
-추천 풀은 **슈퍼 투자자 8인 포트폴리오 + ETF 시그널 분석 대상 약 30종 + 외국인 매매 TOP 종목**의 합집합이다. 이 풀 밖 종목은 추천되지 않는다.
-
-### Meta 예시 — 실제 작동
-
-```json
-{
-  "ticker": "META",
-  "reason": "슈퍼 투자자들의 집중 매수와 함께 RSI 24.9로 기술적 과매도 구간에 진입",
-  "signals": ["investor_buy", "etf_strong_buy"],
-  "confidence": 90
-}
-```
-
-`investor_buy`(Druckenmiller·Soros·Tepper 3명이 매수) + `etf_strong_buy`(RSI 24.9 과매도) 두 신호가 동시에 잡혀 confidence 90을 받았다. 한쪽만 있었다면 65~75에 머물렀을 종목이다.
+| 시그널 | 조건 | 의미 |
+|--------|------|------|
+| STRONG_BUY | RSI 30 이하 + 52주 35% 이하, 또는 골든크로스 직후 | 과매도 저점, 적극 매수 구간 |
+| BUY | RSI 30~45 + MA50 위 + 상승 모멘텀 | 상승 추세 초기 진입 |
+| HOLD | RSI 45~65 + 추세 불분명 | 관망, 기존 포지션 유지 |
+| SELL | RSI 65~75 + 52주 80% 이상 고점권 | 차익실현 고려 |
+| STRONG_SELL | RSI 75 이상 + 52주 95% 이상, 또는 데드크로스 | 과매수 과열, 매도 검토 |
 
 ---
 
@@ -221,9 +187,8 @@ flowchart TD
 
     subgraph Scheduler["APScheduler 백그라운드 잡"]
         S1["investors / stocks_hot / recommendations\n10분 — Yahoo + KIS"]
-        S2["etf_signals\n30분 — Yahoo + KIS + Gemini 배치\n→ prediction_log 저장"]
+        S2["etf_signals + AUM\n30분 — Yahoo + KIS + Gemini 배치\n→ prediction_log 저장"]
         S3["market_driver\n30분 — Gemini"]
-        S4["daily_signal\n6시간 — 5소스 종합 + Gemini"]
         S5["foreign_flow\nKST 16:30/17:30 — 네이버 + KIS"]
         S6["evaluate_predictions\nKST 18:30 — 전날 예측 적중 여부 업데이트"]
     end
@@ -243,13 +208,12 @@ flowchart TD
     S1 --> YF & KIS
     S2 --> YF & KIS & GEM
     S3 --> RSS & GEM
-    S4 --> GEM
     S5 --> KIS
 ```
 
 ```
-GET  /daily-signal            # Buy 5 · Sell 5 · Watch 5 (5소스 + Gemini 종합)
-GET  /etf-signals             # ETF·주식 STRONG_BUY/BUY/HOLD/SELL/STRONG_SELL
+GET  /etf-signals             # ETF·주식 STRONG_BUY/BUY/HOLD/SELL/STRONG_SELL + AUM
+GET  /etf-holdings/{ticker}   # ETF 편입 종목 비중 + 섹터 + 종목별 등락률 (24h 캐시)
 GET  /foreign-flow            # KOSPI/KOSDAQ 외국인 매매 (시장 합계 + TOP 종목)
 GET  /foreign-flow/{ticker}   # 종목별 외국인·기관·개인 30영업일 추이 (KIS)
 GET  /market-driver           # 오늘 시장 핵심 뉴스 3선 (Gemini)
@@ -262,8 +226,6 @@ GET  /korea-rates             # 한국은행 기준금리·국고채·환율
 GET  /crypto                  # 코인 시세 + 7일 sparkline
 GET  /realestate              # 한국 부동산 지표
 GET  /commodities             # 원자재 시세
-GET  /debug/kis-vs-yahoo      # KIS vs Yahoo 시세 신선도 비교 도구
-POST /admin/refresh-daily-signal  # 데일리 시그널 캐시 즉시 갱신
 POST /admin/refresh-etf-signals   # ETF 시그널 캐시 즉시 갱신
 ```
 

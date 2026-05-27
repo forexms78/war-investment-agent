@@ -386,20 +386,17 @@ def _fallback_signal(m: dict) -> dict:
 # ─────────────────────────────────────────────
 
 def _fetch_aum_batch(tickers: list[str]) -> dict[str, float | None]:
-    """Yahoo v7 quote 배치 호출로 ETF totalAssets 조회. 실패 시 빈 dict."""
+    """yfinance로 ETF totalAssets(AUM) 배치 조회. 실패 시 빈 dict."""
     result: dict[str, float | None] = {}
-    try:
-        symbols = ",".join(tickers)
-        url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
-        r = _session.get(url, timeout=15)
-        r.raise_for_status()
-        for q in r.json().get("quoteResponse", {}).get("result", []):
-            sym = q.get("symbol", "")
-            ta = q.get("totalAssets")
-            if sym:
-                result[sym] = ta
-    except Exception as e:
-        print(f"[etf_signals] AUM 배치 조회 실패: {e}")
+    def _get_aum(t: str) -> tuple[str, float | None]:
+        try:
+            import yfinance as yf
+            return t, yf.Ticker(t).info.get("totalAssets")
+        except Exception:
+            return t, None
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        for t, aum in ex.map(lambda t: _get_aum(t), tickers):
+            result[t] = aum
     return result
 
 
