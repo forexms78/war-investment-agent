@@ -327,64 +327,15 @@ export default function Home() {
         {/* ETF·주식 — 메인 랜딩 */}
         {activeTab === "etfstocks" && (
           <div className="fade-in">
-            <HeroSection return_pct={heroReturn} />
-
-            {/* 마켓 드라이버 */}
-            <div style={{ marginBottom: 28 }}>
-              {loadingDrivers ? (
-                <div className="driver-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                  {[0,1,2].map(i => <SkeletonCard key={i} height={72} />)}
-                </div>
-              ) : marketDrivers.length > 0 && (
-                <div className="driver-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                  {marketDrivers.map((d, i) => {
-                    const color = d.direction === "bullish" ? "var(--green)" : d.direction === "bearish" ? "var(--red)" : "var(--orange)";
-                    const tag = d.direction === "bullish" ? t("tag.bullish") : d.direction === "bearish" ? t("tag.bearish") : t("tag.mixed");
-                    return (
-                      <a
-                        key={i}
-                        href={d.url || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <div style={{
-                          background: "var(--card)",
-                          border: "1px solid var(--border)",
-                          borderLeft: `3px solid ${color}`,
-                          borderRadius: 12,
-                          padding: "14px 16px",
-                          cursor: d.url ? "pointer" : "default",
-                          transition: "border-color 0.15s",
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                            <span style={{
-                              fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
-                              color, background: `${color}18`,
-                              border: `1px solid ${color}40`,
-                              borderRadius: 4, padding: "1px 5px",
-                            }}>{tag}</span>
-                            <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{d.source}</span>
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4, lineHeight: 1.3 }}>
-                            {d.headline}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.5 }}>
-                            {d.impact}
-                          </div>
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
             <ETFStockSection
               onSelect={setSelectedStock}
               onSelectEtf={setSelectedEtf}
               usdKrw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
               data={etfSignals}
+              fedRate={moneyFlow?.fed_rate}
+              krwUsd={moneyFlow?.korea_rates?.usd_krw ?? undefined}
+              krwUsdChange={moneyFlow?.korea_rates?.usd_krw_change_1d ?? undefined}
+              marketDrivers={marketDrivers}
             />
 
             {moneyFlow && <MoneyFlowSection data={moneyFlow} korea_rates={moneyFlow.korea_rates} />}
@@ -445,6 +396,7 @@ export default function Home() {
           etf={selectedEtf}
           onClose={() => setSelectedEtf(null)}
           onSelectStock={(ticker) => { setSelectedEtf(null); setSelectedStock(ticker); }}
+          usdKrw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
         />
       )}
     </div>

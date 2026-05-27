@@ -9,18 +9,11 @@ const API = process.env.NEXT_PUBLIC_API_URL;
 
 type Group = "us_etf" | "kr_etf" | "us_stocks" | "kr_stocks";
 
-const SIGNAL_META: Record<ETFSignal, { color: string; bg: string }> = {
-  STRONG_BUY:  { color: "#059669", bg: "#05966918" },
-  BUY:         { color: "#10b981", bg: "#10b98118" },
-  HOLD:        { color: "#6b7280", bg: "#6b728018" },
-  SELL:        { color: "#f59e0b", bg: "#f59e0b18" },
-  STRONG_SELL: { color: "#ef4444", bg: "#ef444418" },
+const SIGNAL_LABEL_KO: Record<ETFSignal, string> = {
+  STRONG_BUY: "적극매수", BUY: "매수", HOLD: "관망", SELL: "매도", STRONG_SELL: "적극매도",
 };
-
-const PHASE_META: Record<TrendPhase, { arrow: string; color: string }> = {
-  MARKUP:   { arrow: "↗", color: "var(--green)" },
-  SIDEWAYS: { arrow: "→", color: "var(--text-muted)" },
-  MARKDOWN: { arrow: "↘", color: "var(--red)" },
+const SIGNAL_LABEL_EN: Record<ETFSignal, string> = {
+  STRONG_BUY: "STRONG BUY", BUY: "BUY", HOLD: "HOLD", SELL: "SELL", STRONG_SELL: "STRONG SELL",
 };
 
 function fmtPrice(item: ETFSignalItem, usdKrw?: number): { main: string; sub: string | null } {
@@ -29,7 +22,7 @@ function fmtPrice(item: ETFSignalItem, usdKrw?: number): { main: string; sub: st
     const usd = usdKrw ? item.current_price / usdKrw : null;
     return {
       main: `₩${krw.toLocaleString("ko-KR")}`,
-      sub:  usd != null ? `$${usd.toFixed(2)}` : null,
+      sub: usd != null ? `$${usd.toFixed(2)}` : null,
     };
   }
   const usd = item.current_price;
@@ -39,26 +32,16 @@ function fmtPrice(item: ETFSignalItem, usdKrw?: number): { main: string; sub: st
   }
   return {
     main: `₩${krw.toLocaleString("ko-KR")}`,
-    sub:  `$${usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+    sub: `$${usd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
   };
 }
 
-function chgColor(v: number | null | undefined): string {
-  if (v == null) return "var(--text-muted)";
-  return v >= 0 ? "var(--green)" : "var(--red)";
-}
-
-function fmtChg(v: number | null | undefined): string {
-  if (v == null) return "-";
-  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
-}
-
-function fmtAum(v: number | null | undefined): string {
-  if (v == null) return "-";
-  if (v >= 1e12) return `$${(v / 1e12).toFixed(1)}T`;
-  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
-  return `$${v.toLocaleString()}`;
+interface MarketDriver {
+  headline: string;
+  impact: string;
+  direction: string;
+  url?: string;
+  source?: string;
 }
 
 interface Props {
@@ -66,27 +49,23 @@ interface Props {
   onSelectEtf?: (item: ETFSignalItem) => void;
   usdKrw?: number;
   data?: ETFSignalsData | null;
+  fedRate?: number;
+  krwUsd?: number;
+  krwUsdChange?: number | null;
+  marketDrivers?: MarketDriver[];
 }
 
-export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: dataProp }: Props) {
+export default function ETFStockSection({
+  onSelect, onSelectEtf, usdKrw, data: dataProp,
+  fedRate, krwUsd, krwUsdChange, marketDrivers,
+}: Props) {
   const { t, lang } = useT();
   const [data, setData] = useState<ETFSignalsData | null>(dataProp ?? null);
   const [loading, setLoading] = useState(!dataProp);
   const [activeGroup, setActiveGroup] = useState<Group>("us_etf");
 
-  const GROUPS: { id: Group; label: string; sub: string }[] = [
-    { id: "us_etf",    label: t("etf.group.us_etf"),  sub: t("etf.group.us_etf.sub") },
-    { id: "kr_etf",    label: t("etf.group.kr_etf"),  sub: t("etf.group.kr_etf.sub") },
-    { id: "us_stocks", label: t("etf.group.us"),       sub: t("etf.group.us.sub")     },
-    { id: "kr_stocks", label: t("etf.group.kr"),       sub: t("etf.group.kr.sub")     },
-  ];
-
   useEffect(() => {
-    if (dataProp) {
-      setData(dataProp);
-      setLoading(false);
-      return;
-    }
+    if (dataProp) { setData(dataProp); setLoading(false); return; }
     if (data) return;
     fetch(`${API}/etf-signals`)
       .then(r => r.json())
@@ -109,228 +88,276 @@ export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: d
 
   const isEtfGroup = activeGroup === "us_etf" || activeGroup === "kr_etf";
 
+  const heroReturn = useMemo(() => {
+    if (!data) return 0;
+    const allEtfs = data.etfs;
+    if (allEtfs.length === 0) return 0;
+    const returns = allEtfs.map(e => e.change_1y).filter((v): v is number => v != null);
+    if (returns.length === 0) return 0;
+    return returns.reduce((s, v) => s + v, 0) / returns.length;
+  }, [data]);
+
+  const counts = useMemo(() => {
+    if (!data) return { us_etf: 0, kr_etf: 0, us_stocks: 0, kr_stocks: 0 };
+    return {
+      us_etf: data.etfs.filter(e => !e.ticker.endsWith(".KS") && !e.ticker.endsWith(".KQ")).length,
+      kr_etf: data.etfs.filter(e => e.ticker.endsWith(".KS") || e.ticker.endsWith(".KQ")).length,
+      us_stocks: (data.us_stocks || []).length,
+      kr_stocks: (data.kr_stocks || []).length,
+    };
+  }, [data]);
+
+  const GROUP_LABELS: Record<Group, { ko: string; en: string }> = {
+    us_etf:    { ko: "미장 ETF",  en: "US ETFs" },
+    kr_etf:    { ko: "국장 ETF",  en: "KR ETFs" },
+    us_stocks: { ko: "미장 주식", en: "US Stocks" },
+    kr_stocks: { ko: "국장 주식", en: "KR Stocks" },
+  };
+
+  const groupTitle = lang === "ko" ? GROUP_LABELS[activeGroup].ko : GROUP_LABELS[activeGroup].en;
+  const updatedStr = data?.updated_at
+    ? new Date(data.updated_at).toLocaleString(lang === "ko" ? "ko-KR" : "en-US", {
+        month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+      })
+    : "";
+
   return (
-    <div className="fade-in">
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>
-            {t("etf.title")}
-          </span>
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            {t("etf.subtitle")}
-          </span>
-        </div>
-        <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.55 }}>
-          {t("etf.description")}
-          {data?.updated_at && (
-            <span style={{ marginLeft: 8, color: "var(--text-muted)" }}>
-              · {t("etf.updated")} {new Date(data.updated_at).toLocaleString(lang === "ko" ? "ko-KR" : "en-US", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-        {GROUPS.map(g => (
-          <button
-            key={g.id}
-            onClick={() => setActiveGroup(g.id)}
-            style={{
-              padding: "10px 18px",
-              borderRadius: 10,
-              background: activeGroup === g.id ? "var(--accent-dim)" : "var(--card)",
-              border: activeGroup === g.id ? "1px solid var(--accent-glow)" : "1px solid var(--border)",
-              color: activeGroup === g.id ? "var(--accent)" : "var(--text-secondary)",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: activeGroup === g.id ? 700 : 500,
-              transition: "all 0.15s",
-              textAlign: "left",
-            }}
-          >
-            <div>{g.label}</div>
-            <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2, fontWeight: 400 }}>
-              {g.sub}
+    <div className="wx-main fade-in">
+      {/* Sidebar */}
+      <aside className="wx-sidebar">
+        <div className="wx-sidebar-block">
+          <div className="wx-sidebar-title">
+            <span>{lang === "ko" ? "오늘의 마켓" : "Today"}</span>
+          </div>
+          <div>
+            <div className="wx-mini-kpi">
+              <div className="k">{lang === "ko" ? "ETF 1년 평균" : "ETF 1Y avg"}</div>
+              <div className={`v ${heroReturn >= 0 ? "up" : "dn"}`}>
+                {heroReturn >= 0 ? "+" : ""}{heroReturn.toFixed(1)}%
+              </div>
+              <div className="sub">
+                {data ? `${data.etfs.length}${lang === "ko" ? "종 추적" : " ETFs tracked"}` : ""}
+              </div>
             </div>
-          </button>
-        ))}
-      </div>
+            {fedRate != null && (
+              <div className="wx-mini-kpi">
+                <div className="k">Fed Rate</div>
+                <div className="v">{fedRate}%</div>
+                <div className="sub">target 3.50-3.75</div>
+              </div>
+            )}
+            {krwUsd != null && (
+              <div className="wx-mini-kpi">
+                <div className="k">KRW / USD</div>
+                <div className="v">{krwUsd.toLocaleString("ko-KR")}</div>
+                {krwUsdChange != null && (
+                  <div className="sub" style={{ color: krwUsdChange >= 0 ? "var(--down)" : "var(--up)" }}>
+                    {krwUsdChange >= 0 ? "+" : ""}{krwUsdChange.toFixed(2)}%
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
-      {loading || !data ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} height={210} />)}
+        <div className="wx-sidebar-block">
+          <div className="wx-sidebar-title">
+            <span>{lang === "ko" ? "카테고리" : "Category"}</span>
+          </div>
+          <div className="wx-sidebar-nav">
+            {(["us_etf", "kr_etf", "us_stocks", "kr_stocks"] as Group[]).map(gid => (
+              <button
+                key={gid}
+                aria-pressed={activeGroup === gid}
+                onClick={() => setActiveGroup(gid)}
+              >
+                <span>{lang === "ko" ? GROUP_LABELS[gid].ko : GROUP_LABELS[gid].en}</span>
+                <span className="count">{counts[gid]}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      ) : items.length === 0 ? (
-        <div style={{
-          textAlign: "center", padding: "60px 20px",
-          color: "var(--text-muted)", fontSize: 13,
-          background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12,
-        }}>
-          {t("etf.empty")}
+
+        {marketDrivers && marketDrivers.length > 0 && (
+          <div className="wx-sidebar-block">
+            <div className="wx-sidebar-title">
+              <span>{lang === "ko" ? "오늘의 뉴스" : "Market drivers"}</span>
+              <button className="wx-sidebar-action">{lang === "ko" ? "전체 →" : "All →"}</button>
+            </div>
+            <div className="wx-side-news">
+              {marketDrivers.slice(0, 3).map((d, i) => (
+                <a key={i} href={d.url || "#"} target="_blank" rel="noopener noreferrer">
+                  <div className="row">
+                    <span className={`wx-tag ${d.direction}`}>
+                      {lang === "ko"
+                        ? d.direction === "bullish" ? "강세" : d.direction === "bearish" ? "약세" : "혼조"
+                        : d.direction.toUpperCase()}
+                    </span>
+                    <span className="src">{d.source}</span>
+                  </div>
+                  <div className="hl">{d.headline}</div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
+
+      {/* Main content */}
+      <div className="wx-content">
+        <div className="wx-section-head">
+          <div className="ttl">
+            <span className="name">{groupTitle}</span>
+            <span className="meta">
+              {items.length} · Updated {updatedStr}
+            </span>
+          </div>
+          <div className="wx-groups" role="tablist">
+            {(["us_etf", "kr_etf", "us_stocks", "kr_stocks"] as Group[]).map(gid => (
+              <button
+                key={gid}
+                className="wx-group-btn"
+                aria-pressed={activeGroup === gid}
+                onClick={() => setActiveGroup(gid)}
+              >
+                <span className="top">
+                  {lang === "ko" ? GROUP_LABELS[gid].ko : GROUP_LABELS[gid].en}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {items.map((item, idx) => (
-            <SignalCard
-              key={item.ticker}
-              item={item}
-              rank={isEtfGroup ? idx + 1 : undefined}
-              isEtf={isEtfGroup}
-              onSelect={isEtfGroup && onSelectEtf ? () => onSelectEtf(item) : () => onSelect(item.ticker)}
-              usdKrw={usdKrw}
-            />
-          ))}
-        </div>
-      )}
+
+        {loading || !data ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} height={56} />)}
+          </div>
+        ) : items.length === 0 ? (
+          <div style={{
+            textAlign: "center", padding: "60px 20px",
+            color: "var(--fg-subtle)", fontSize: 13,
+            borderTop: "1px solid var(--border)",
+          }}>
+            {t("etf.empty")}
+          </div>
+        ) : (
+          <div className="wx-card-grid">
+            <div className="wx-list-header">
+              <span></span>
+              <span>{lang === "ko" ? "종목" : "Asset"}</span>
+              <span>{lang === "ko" ? "시그널" : "Signal"}</span>
+              <span>{lang === "ko" ? "가격" : "Price"}</span>
+              <span>1Y</span>
+              <span>30D</span>
+              <span>RSI</span>
+              <span>52W</span>
+              <span>MA200</span>
+              <span></span>
+            </div>
+            {items.map((item, idx) => (
+              <ETFRow
+                key={item.ticker}
+                item={item}
+                rank={isEtfGroup ? idx + 1 : undefined}
+                isEtf={isEtfGroup}
+                onSelect={isEtfGroup && onSelectEtf ? () => onSelectEtf(item) : () => onSelect(item.ticker)}
+                usdKrw={usdKrw}
+                lang={lang}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-
-function SignalCard({ item, rank, isEtf, onSelect, usdKrw }: {
+function ETFRow({ item, rank, isEtf, onSelect, usdKrw, lang }: {
   item: ETFSignalItem;
   rank?: number;
   isEtf?: boolean;
   onSelect: () => void;
   usdKrw?: number;
+  lang: string;
 }) {
-  const { t } = useT();
-  const meta = SIGNAL_META[item.signal];
-  const phase = PHASE_META[item.trend_phase ?? "SIDEWAYS"];
-  const isDanger = item.safety === "DANGER";
+  const [expanded, setExpanded] = useState(false);
   const price = fmtPrice(item, usdKrw);
+  const isUp1y = (item.change_1y ?? 0) >= 0;
+  const isUp30d = (item.change_1m ?? 0) >= 0;
+  const labels = lang === "ko" ? SIGNAL_LABEL_KO : SIGNAL_LABEL_EN;
+  const phaseLabel = lang === "ko"
+    ? { MARKUP: "상승", SIDEWAYS: "횡보", MARKDOWN: "하락" }
+    : { MARKUP: "MARKUP", SIDEWAYS: "SIDEWAYS", MARKDOWN: "MARKDOWN" };
+  const phaseArrow = item.trend_phase === "MARKUP" ? "↗" : item.trend_phase === "MARKDOWN" ? "↘" : "→";
+  const phaseClass = item.trend_phase === "MARKUP" ? "up" : item.trend_phase === "MARKDOWN" ? "dn" : "flat";
 
   return (
-    <button
-      onClick={onSelect}
-      style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 16,
-        cursor: "pointer",
-        textAlign: "left",
-        transition: "all 0.15s",
-      }}
-      onMouseEnter={e => {
-        const el = e.currentTarget as HTMLButtonElement;
-        el.style.borderColor = meta.color + "60";
-        el.style.transform = "translateY(-1px)";
-      }}
-      onMouseLeave={e => {
-        const el = e.currentTarget as HTMLButtonElement;
-        el.style.borderColor = "var(--border)";
-        el.style.transform = "translateY(0)";
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10, gap: 10 }}>
-        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-          {rank != null && (
-            <span style={{
-              fontSize: 11, fontWeight: 800, color: rank <= 3 ? "var(--accent)" : "var(--text-muted)",
-              width: 22, textAlign: "center", flexShrink: 0,
-            }}>
-              #{rank}
-            </span>
-          )}
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
-              {item.ticker.replace(".KS", "").replace(".KQ", "")}
+    <div className="wx-etf-row" onClick={onSelect}>
+      <span className={`wx-card-rank ${rank != null && rank > 3 ? "muted" : ""}`}>
+        {rank != null ? String(rank).padStart(2, "0") : ""}
+      </span>
+      <div className="wx-card-ticker-col">
+        <div className="wx-card-ticker">{item.ticker.replace(".KS", "").replace(".KQ", "")}</div>
+        <div className="wx-card-name">{item.name}</div>
+      </div>
+      <span className={`wx-signal ${item.signal}`}>{labels[item.signal]}</span>
+      <div className="wx-card-price" style={{ textAlign: "right" }}>{price.main}</div>
+      <span className={`wx-cell-num ${isUp1y ? "up" : "dn"}`}>
+        {isUp1y ? "+" : ""}{(item.change_1y ?? 0).toFixed(1)}%
+      </span>
+      <span className={`wx-cell-num ${isUp30d ? "up" : "dn"}`}>
+        {item.change_1m != null ? `${isUp30d ? "+" : ""}${item.change_1m.toFixed(1)}%` : "—"}
+      </span>
+      <span className="wx-cell-num">{Math.round(item.rsi)}</span>
+      <span className="wx-cell-num">{Math.round(item.week52_pos)}%</span>
+      <span className={`wx-cell-num ${item.above_ma200 ? "up" : "dn"}`}>
+        {item.above_ma200 ? "↑" : "↓"}
+      </span>
+      <button
+        className="wx-row-toggle"
+        aria-expanded={expanded}
+        onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+      >
+        <span className="arrow">⌄</span>
+      </button>
+
+      <div className="wx-row-details" data-open={expanded} onClick={e => e.stopPropagation()}>
+        <div className="inner">
+          <div className="padding">
+            <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div className="wx-meta-row">
+                  <span className="k">{lang === "ko" ? "추세" : "Trend"}</span>
+                  <span className={`v ${phaseClass}`}>
+                    {phaseArrow} {phaseLabel[item.trend_phase || "SIDEWAYS"]}
+                  </span>
+                </div>
+                {item.change_7d != null && (
+                  <div className="wx-meta-row">
+                    <span className="k">7D</span>
+                    <span className={`v ${item.change_7d >= 0 ? "up" : "dn"}`}>
+                      {item.change_7d >= 0 ? "+" : ""}{item.change_7d.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+                {item.change_6m != null && (
+                  <div className="wx-meta-row">
+                    <span className="k">6M</span>
+                    <span className={`v ${item.change_6m >= 0 ? "up" : "dn"}`}>
+                      {item.change_6m >= 0 ? "+" : ""}{item.change_6m.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {item.name}
-            </div>
+            {item.reason && (
+              <div style={{ fontSize: 12, color: "var(--fg-muted)", lineHeight: 1.55 }}>
+                {item.reason}
+              </div>
+            )}
           </div>
         </div>
-        <div style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: "0.04em",
-          color: meta.color,
-          background: meta.bg,
-          borderRadius: 999,
-          padding: "3px 10px",
-          flexShrink: 0,
-        }}>
-          {t(`signal.${item.signal}`)}
-        </div>
       </div>
-
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-          {price.main}
-        </span>
-        {price.sub && (
-          <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
-            {price.sub}
-          </span>
-        )}
-        {isEtf && item.total_assets != null && (
-          <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600, marginLeft: "auto" }}>
-            {t("etf.aum")} {fmtAum(item.total_assets)}
-          </span>
-        )}
-      </div>
-
-      {/* 등락률 행 — 7d / 1m / 6m / 1y */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-        {item.change_7d != null && (
-          <PerfBadge label="7D" value={item.change_7d} />
-        )}
-        {item.change_1m != null && (
-          <PerfBadge label="1M" value={item.change_1m} />
-        )}
-        {item.change_6m != null && (
-          <PerfBadge label="6M" value={item.change_6m} />
-        )}
-        <PerfBadge label="1Y" value={item.change_1y} />
-      </div>
-
-      <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 10, flexWrap: "wrap", lineHeight: 1.5 }}>
-        <span>RSI <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{Math.round(item.rsi)}</span></span>
-        <span>52w <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{Math.round(item.week52_pos)}%</span></span>
-        <span>MA200 <span style={{ color: item.above_ma200 ? "var(--green)" : "var(--red)", fontWeight: 700 }}>{item.above_ma200 ? "↑" : "↓"}</span></span>
-        <span style={{ color: phase.color, fontWeight: 700 }}>
-          {phase.arrow} {t(`phase.${item.trend_phase ?? "SIDEWAYS"}`)}
-        </span>
-      </div>
-
-      {isDanger && (
-        <div style={{ fontSize: 10, color: "var(--red)", fontWeight: 700, letterSpacing: "0.04em", marginTop: 8 }}>
-          {t("danger.label")}
-        </div>
-      )}
-
-      {item.reason && (
-        <div style={{
-          fontSize: 11,
-          color: "var(--text-secondary)",
-          lineHeight: 1.45,
-          marginTop: isDanger ? 6 : 10,
-          overflow: "hidden",
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-        }}>
-          {item.reason}
-        </div>
-      )}
-    </button>
-  );
-}
-
-function PerfBadge({ label, value }: { label: string; value: number }) {
-  const isUp = value >= 0;
-  const color = isUp ? "var(--green)" : "var(--red)";
-  return (
-    <span style={{
-      fontSize: 10, fontWeight: 600,
-      color,
-      background: `${isUp ? "#10b981" : "#ef4444"}12`,
-      padding: "2px 7px", borderRadius: 4,
-      whiteSpace: "nowrap",
-    }}>
-      {label} {isUp ? "+" : ""}{value.toFixed(1)}%
-    </span>
+    </div>
   );
 }
