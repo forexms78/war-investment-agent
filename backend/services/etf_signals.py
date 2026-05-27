@@ -294,8 +294,10 @@ def _calc_metrics(item: dict, hist: dict) -> dict:
         "above_ma50":     current > ma50,
         "above_ma200":    above_ma200_b,
         "golden_cross":   ma50 > ma200,
+        "change_7d":      chg(5),
         "change_1m":      chg(21),
         "change_3m":      chg(63),
+        "change_6m":      chg(126),
         "change_1y":      round((current - closes[0]) / closes[0] * 100, 1),
         "trend_score":    trend_score,
         "trend_phase":    trend_phase,
@@ -380,6 +382,28 @@ def _fallback_signal(m: dict) -> dict:
 
 
 # ─────────────────────────────────────────────
+# AUM(운용자산) 배치 조회
+# ─────────────────────────────────────────────
+
+def _fetch_aum_batch(tickers: list[str]) -> dict[str, float | None]:
+    """Yahoo v7 quote 배치 호출로 ETF totalAssets 조회. 실패 시 빈 dict."""
+    result: dict[str, float | None] = {}
+    try:
+        symbols = ",".join(tickers)
+        url = f"https://query2.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
+        r = _session.get(url, timeout=15)
+        r.raise_for_status()
+        for q in r.json().get("quoteResponse", {}).get("result", []):
+            sym = q.get("symbol", "")
+            ta = q.get("totalAssets")
+            if sym:
+                result[sym] = ta
+    except Exception as e:
+        print(f"[etf_signals] AUM 배치 조회 실패: {e}")
+    return result
+
+
+# ─────────────────────────────────────────────
 # 메인 엔트리
 # ─────────────────────────────────────────────
 
@@ -399,6 +423,9 @@ def get_etf_signals() -> dict:
     etf_set = {x["ticker"] for x in ETF_LIST}
     us_set  = {x["ticker"] for x in US_STOCK_LIST}
 
+    etf_tickers = [m["ticker"] for m in metrics_list if m["ticker"] in etf_set]
+    aum_map = _fetch_aum_batch(etf_tickers) if etf_tickers else {}
+
     etfs, us, kr = [], [], []
     for m in metrics_list:
         j = judgments.get(m["ticker"]) or _fallback_signal(m)
@@ -406,6 +433,7 @@ def get_etf_signals() -> dict:
         m["reason"] = j["reason"]
         _apply_abce(m)
         if m["ticker"] in etf_set:
+            m["total_assets"] = aum_map.get(m["ticker"])
             etfs.append(m)
         elif m["ticker"] in us_set:
             us.append(m)

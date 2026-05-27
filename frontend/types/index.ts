@@ -271,14 +271,17 @@ export interface ETFSignalItem {
   above_ma50: boolean;
   above_ma200: boolean;
   golden_cross: boolean;
+  change_7d: number | null;
   change_1m: number | null;
   change_3m: number | null;
+  change_6m: number | null;
   change_1y: number;
   signal: ETFSignal;
   reason: string;
   trend_score?: number;
   trend_phase?: TrendPhase;
   safety?: SafetyGrade;
+  total_assets?: number | null;
 }
 
 export interface ETFSignalsData {
@@ -294,6 +297,11 @@ export interface ETFHoldingItem {
   ticker: string;
   name: string;
   weight: number;
+  current_price?: number | null;
+  change_1d_pct?: number | null;
+  change_7d_pct?: number | null;
+  change_1m_pct?: number | null;
+  change_6m_pct?: number | null;
 }
 
 export interface ETFSectorWeight {

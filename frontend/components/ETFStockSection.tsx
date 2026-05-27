@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ETFSignalsData, ETFSignalItem, ETFSignal, TrendPhase } from "@/types";
 import SkeletonCard from "@/components/SkeletonCard";
 import { useT } from "@/contexts/LanguageContext";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Group = "etfs" | "us_stocks" | "kr_stocks";
+type Group = "us_etf" | "kr_etf" | "us_stocks" | "kr_stocks";
 
 const SIGNAL_META: Record<ETFSignal, { color: string; bg: string }> = {
   STRONG_BUY:  { color: "#059669", bg: "#05966918" },
@@ -53,6 +53,14 @@ function fmtChg(v: number | null | undefined): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
+function fmtAum(v: number | null | undefined): string {
+  if (v == null) return "-";
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(1)}T`;
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  return `$${v.toLocaleString()}`;
+}
+
 interface Props {
   onSelect: (ticker: string) => void;
   onSelectEtf?: (item: ETFSignalItem) => void;
@@ -64,16 +72,15 @@ export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: d
   const { t, lang } = useT();
   const [data, setData] = useState<ETFSignalsData | null>(dataProp ?? null);
   const [loading, setLoading] = useState(!dataProp);
-  const [activeGroup, setActiveGroup] = useState<Group>("etfs");
+  const [activeGroup, setActiveGroup] = useState<Group>("us_etf");
 
   const GROUPS: { id: Group; label: string; sub: string }[] = [
-    { id: "etfs",      label: t("etf.group.etfs"), sub: t("etf.group.etfs.sub") },
-    { id: "us_stocks", label: t("etf.group.us"),   sub: t("etf.group.us.sub")   },
-    { id: "kr_stocks", label: t("etf.group.kr"),   sub: t("etf.group.kr.sub")   },
+    { id: "us_etf",    label: t("etf.group.us_etf"),  sub: t("etf.group.us_etf.sub") },
+    { id: "kr_etf",    label: t("etf.group.kr_etf"),  sub: t("etf.group.kr_etf.sub") },
+    { id: "us_stocks", label: t("etf.group.us"),       sub: t("etf.group.us.sub")     },
+    { id: "kr_stocks", label: t("etf.group.kr"),       sub: t("etf.group.kr.sub")     },
   ];
 
-  // dashboard에서 prefetch한 데이터를 prop으로 받으면 즉시 표시.
-  // prop 없을 때만 fallback fetch.
   useEffect(() => {
     if (dataProp) {
       setData(dataProp);
@@ -87,7 +94,20 @@ export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: d
       .finally(() => setLoading(false));
   }, [dataProp]);
 
-  const items: ETFSignalItem[] = data ? data[activeGroup] : [];
+  const items: ETFSignalItem[] = useMemo(() => {
+    if (!data) return [];
+    if (activeGroup === "us_etf") {
+      const usEtfs = data.etfs.filter(e => !e.ticker.endsWith(".KS") && !e.ticker.endsWith(".KQ"));
+      return [...usEtfs].sort((a, b) => (b.total_assets ?? 0) - (a.total_assets ?? 0));
+    }
+    if (activeGroup === "kr_etf") {
+      const krEtfs = data.etfs.filter(e => e.ticker.endsWith(".KS") || e.ticker.endsWith(".KQ"));
+      return [...krEtfs].sort((a, b) => (b.total_assets ?? 0) - (a.total_assets ?? 0));
+    }
+    return data[activeGroup] || [];
+  }, [data, activeGroup]);
+
+  const isEtfGroup = activeGroup === "us_etf" || activeGroup === "kr_etf";
 
   return (
     <div className="fade-in">
@@ -150,11 +170,13 @@ export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: d
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {items.map(item => (
+          {items.map((item, idx) => (
             <SignalCard
               key={item.ticker}
               item={item}
-              onSelect={activeGroup === "etfs" && onSelectEtf ? () => onSelectEtf(item) : () => onSelect(item.ticker)}
+              rank={isEtfGroup ? idx + 1 : undefined}
+              isEtf={isEtfGroup}
+              onSelect={isEtfGroup && onSelectEtf ? () => onSelectEtf(item) : () => onSelect(item.ticker)}
               usdKrw={usdKrw}
             />
           ))}
@@ -165,7 +187,13 @@ export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: d
 }
 
 
-function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect: () => void; usdKrw?: number }) {
+function SignalCard({ item, rank, isEtf, onSelect, usdKrw }: {
+  item: ETFSignalItem;
+  rank?: number;
+  isEtf?: boolean;
+  onSelect: () => void;
+  usdKrw?: number;
+}) {
   const { t } = useT();
   const meta = SIGNAL_META[item.signal];
   const phase = PHASE_META[item.trend_phase ?? "SIDEWAYS"];
@@ -196,12 +224,22 @@ function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect:
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10, gap: 10 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
-            {item.ticker.replace(".KS", "").replace(".KQ", "")}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {item.name}
+        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+          {rank != null && (
+            <span style={{
+              fontSize: 11, fontWeight: 800, color: rank <= 3 ? "var(--accent)" : "var(--text-muted)",
+              width: 22, textAlign: "center", flexShrink: 0,
+            }}>
+              #{rank}
+            </span>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
+              {item.ticker.replace(".KS", "").replace(".KQ", "")}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {item.name}
+            </div>
           </div>
         </div>
         <div style={{
@@ -227,9 +265,25 @@ function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect:
             {price.sub}
           </span>
         )}
-        <span style={{ fontSize: 12, color: chgColor(item.change_1y), fontWeight: 700, marginLeft: "auto" }}>
-          {fmtChg(item.change_1y)} <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>1Y</span>
-        </span>
+        {isEtf && item.total_assets != null && (
+          <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 600, marginLeft: "auto" }}>
+            {t("etf.aum")} {fmtAum(item.total_assets)}
+          </span>
+        )}
+      </div>
+
+      {/* 등락률 행 — 7d / 1m / 6m / 1y */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+        {item.change_7d != null && (
+          <PerfBadge label="7D" value={item.change_7d} />
+        )}
+        {item.change_1m != null && (
+          <PerfBadge label="1M" value={item.change_1m} />
+        )}
+        {item.change_6m != null && (
+          <PerfBadge label="6M" value={item.change_6m} />
+        )}
+        <PerfBadge label="1Y" value={item.change_1y} />
       </div>
 
       <div style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", gap: 10, flexWrap: "wrap", lineHeight: 1.5 }}>
@@ -262,5 +316,21 @@ function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect:
         </div>
       )}
     </button>
+  );
+}
+
+function PerfBadge({ label, value }: { label: string; value: number }) {
+  const isUp = value >= 0;
+  const color = isUp ? "var(--green)" : "var(--red)";
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 600,
+      color,
+      background: `${isUp ? "#10b981" : "#ef4444"}12`,
+      padding: "2px 7px", borderRadius: 4,
+      whiteSpace: "nowrap",
+    }}>
+      {label} {isUp ? "+" : ""}{value.toFixed(1)}%
+    </span>
   );
 }

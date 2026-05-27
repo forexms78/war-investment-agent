@@ -17,6 +17,16 @@ interface Props {
   onSelectStock?: (ticker: string) => void;
 }
 
+function chgColor(v: number | null | undefined): string {
+  if (v == null) return "var(--text-muted)";
+  return v >= 0 ? "var(--green)" : "var(--red)";
+}
+
+function fmtChg(v: number | null | undefined): string {
+  if (v == null) return "-";
+  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+}
+
 export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props) {
   const { t } = useT();
   const [data, setData] = useState<ETFHoldingsData | null>(null);
@@ -53,8 +63,8 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
         onClick={e => e.stopPropagation()}
         style={{
           background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: 20, width: "100%", maxWidth: 680,
-          maxHeight: "85vh", overflow: "auto",
+          borderRadius: 20, width: "100%", maxWidth: 780,
+          maxHeight: "90vh", overflow: "auto",
           boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
         }}
       >
@@ -97,22 +107,32 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
             </button>
           </div>
 
-          {/* ETF 기본 지표 */}
-          <div style={{ display: "flex", gap: 16, marginTop: 14, flexWrap: "wrap" }}>
-            <Metric label="RSI" value={Math.round(etf.rsi).toString()} />
-            <Metric label="52w" value={`${Math.round(etf.week52_pos)}%`} />
-            <Metric
-              label="1Y"
-              value={`${etf.change_1y >= 0 ? "+" : ""}${etf.change_1y.toFixed(1)}%`}
-              color={etf.change_1y >= 0 ? "var(--green)" : "var(--red)"}
-            />
-            {etf.change_1m != null && (
-              <Metric
-                label="1M"
-                value={`${etf.change_1m >= 0 ? "+" : ""}${etf.change_1m.toFixed(1)}%`}
-                color={etf.change_1m >= 0 ? "var(--green)" : "var(--red)"}
-              />
-            )}
+          {/* ETF 자체 등락률 */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: "var(--text-muted)",
+              letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8,
+            }}>
+              {t("holdings.etf_perf")}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Metric label="RSI" value={Math.round(etf.rsi).toString()} />
+              <Metric label="52w" value={`${Math.round(etf.week52_pos)}%`} />
+              <Sep />
+              {etf.change_7d != null && (
+                <Metric label={t("holdings.7d")} value={fmtChg(etf.change_7d)} color={chgColor(etf.change_7d)} />
+              )}
+              {etf.change_1m != null && (
+                <Metric label={t("holdings.1m")} value={fmtChg(etf.change_1m)} color={chgColor(etf.change_1m)} />
+              )}
+              {etf.change_3m != null && (
+                <Metric label="3M" value={fmtChg(etf.change_3m)} color={chgColor(etf.change_3m)} />
+              )}
+              {etf.change_6m != null && (
+                <Metric label={t("holdings.6m")} value={fmtChg(etf.change_6m)} color={chgColor(etf.change_6m)} />
+              )}
+              <Metric label="1Y" value={fmtChg(etf.change_1y)} color={chgColor(etf.change_1y)} />
+            </div>
           </div>
         </div>
 
@@ -185,7 +205,7 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
                       </div>
                       <span style={{
                         fontSize: 11, color: "var(--text-muted)",
-                        width: 120, flexShrink: 0, textAlign: "right",
+                        width: 100, flexShrink: 0, textAlign: "right",
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       }}>
                         {h.name}
@@ -197,7 +217,7 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
 
               {/* Sector Weights - 도넛 차트 */}
               {data!.sector_weights.length > 0 && (
-                <div>
+                <div style={{ marginBottom: 28 }}>
                   <div style={{
                     fontSize: 13, fontWeight: 700, color: "var(--text-muted)",
                     letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14,
@@ -227,6 +247,81 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
                   </div>
                 </div>
               )}
+
+              {/* 편입 종목 등락률 테이블 */}
+              {data!.holdings.some(h => h.current_price != null) && (
+                <div>
+                  <div style={{
+                    fontSize: 13, fontWeight: 700, color: "var(--text-muted)",
+                    letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14,
+                  }}>
+                    {t("holdings.perf")}
+                  </div>
+
+                  {/* 테이블 헤더 */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "60px 1fr 70px 60px 60px 60px 60px",
+                    gap: 4, padding: "8px 0",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
+                    letterSpacing: "0.04em",
+                  }}>
+                    <span>Ticker</span>
+                    <span>Name</span>
+                    <span style={{ textAlign: "right" }}>{t("holdings.price")}</span>
+                    <span style={{ textAlign: "right" }}>{t("holdings.1d")}</span>
+                    <span style={{ textAlign: "right" }}>{t("holdings.7d")}</span>
+                    <span style={{ textAlign: "right" }}>{t("holdings.1m")}</span>
+                    <span style={{ textAlign: "right" }}>{t("holdings.6m")}</span>
+                  </div>
+
+                  {/* 테이블 본문 */}
+                  {data!.holdings.map((h, i) => (
+                    <button
+                      key={h.ticker}
+                      onClick={() => h.ticker && onSelectStock?.(h.ticker)}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "60px 1fr 70px 60px 60px 60px 60px",
+                        gap: 4, padding: "10px 0",
+                        borderBottom: "1px solid var(--border)",
+                        background: "transparent", border: "none", width: "100%",
+                        cursor: h.ticker ? "pointer" : "default",
+                        textAlign: "left",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-2)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
+                        {h.ticker}
+                      </span>
+                      <span style={{
+                        fontSize: 11, color: "var(--text-muted)",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }}>
+                        {h.name}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", textAlign: "right" }}>
+                        {h.current_price != null ? `$${h.current_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "-"}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_1d_pct), textAlign: "right" }}>
+                        {fmtChg(h.change_1d_pct)}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_7d_pct), textAlign: "right" }}>
+                        {fmtChg(h.change_7d_pct)}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_1m_pct), textAlign: "right" }}>
+                        {fmtChg(h.change_1m_pct)}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_6m_pct), textAlign: "right" }}>
+                        {fmtChg(h.change_6m_pct)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -237,11 +332,15 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
 
 function Metric({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: color || "var(--text-primary)" }}>{value}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 8px", background: "var(--bg-2)", borderRadius: 6 }}>
+      <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 500 }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: color || "var(--text-primary)" }}>{value}</span>
     </div>
   );
+}
+
+function Sep() {
+  return <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />;
 }
 
 function DonutChart({ sectors }: { sectors: { sector: string; weight: number; color: string }[] }) {
