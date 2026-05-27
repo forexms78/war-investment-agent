@@ -289,6 +289,26 @@ export interface ETFSignalsData {
 }
 
 
+// ETF Holdings
+export interface ETFHoldingItem {
+  ticker: string;
+  name: string;
+  weight: number;
+}
+
+export interface ETFSectorWeight {
+  sector: string;
+  weight: number;
+  color: string;
+}
+
+export interface ETFHoldingsData {
+  ticker: string;
+  holdings: ETFHoldingItem[];
+  sector_weights: ETFSectorWeight[];
+  source: string;
+}
+
 // My Lab
 export interface AnalysisFile {
   name: string;

@@ -408,6 +408,13 @@ async def etf_signals():
     return {"etfs": [], "us_stocks": [], "kr_stocks": [], "updated_at": None}
 
 
+@app.get("/etf-holdings/{ticker}")
+async def etf_holdings(ticker: str):
+    """ETF 편입 종목 조회 — Yahoo Finance topHoldings (24시간 캐시)"""
+    from backend.services.etf_holdings import get_etf_holdings
+    return await _run(get_etf_holdings, ticker)
+
+
 _LAST_ADMIN_REFRESH_AT: float = 0.0
 _ADMIN_REFRESH_COOLDOWN_SEC = 60.0
 

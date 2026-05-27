@@ -4,7 +4,6 @@ export const LANGS: Lang[] = ["ko", "en"];
 
 export const DICT: Record<Lang, Record<string, string>> = {
   ko: {
-    "tab.signal":     "Whale Signal",
     "tab.markets":    "마켓",
     "tab.etfstocks":  "ETF·주식",
     "tab.foreign":    "외국인 매매",
@@ -15,9 +14,9 @@ export const DICT: Record<Lang, Record<string, string>> = {
     "theme.dark":     "DARK",
     "theme.light":    "LIGHT",
 
-    "hero.label":       "Whalyx Top 8 평균 수익률",
-    "hero.description": "13F 공시 기반 슈퍼투자자 8인 포트폴리오 평균",
-    "hero.cta":         "시그널 받기",
+    "hero.label":       "ETF 포트폴리오 평균 수익률",
+    "hero.description": "Whalyx 추적 ETF 기술 분석 기반",
+    "hero.cta":         "ETF 분석 보기",
 
     "pilots.title":     "슈퍼투자자 8인",
     "pilots.subtitle":  "13F 공시 기반 — 카드 클릭 시 포트폴리오 공개",
@@ -113,9 +112,17 @@ export const DICT: Record<Lang, Record<string, string>> = {
     "mylab.content.error":    "내용을 불러오지 못했습니다",
     "mylab.close":            "닫기",
     "mylab.size":             "크기",
+
+    "holdings.title":         "편입 종목 구성",
+    "holdings.top":           "상위 편입 종목",
+    "holdings.sector":        "섹터 비중",
+    "holdings.weight":        "비중",
+    "holdings.loading":       "편입 종목 조회 중...",
+    "holdings.empty":         "편입 종목 데이터가 없습니다",
+    "holdings.close":         "닫기",
+    "holdings.unavailable":   "이 ETF의 홀딩스 데이터는 제공되지 않습니다",
   },
   en: {
-    "tab.signal":     "Whale Signal",
     "tab.markets":    "Markets",
     "tab.etfstocks":  "ETF · Stocks",
     "tab.foreign":    "Foreign Flow",
@@ -126,9 +133,9 @@ export const DICT: Record<Lang, Record<string, string>> = {
     "theme.dark":     "DARK",
     "theme.light":    "LIGHT",
 
-    "hero.label":       "Whalyx Top 8 Avg Return",
-    "hero.description": "13F super-investor 8-portfolio average",
-    "hero.cta":         "Get Signals",
+    "hero.label":       "ETF Portfolio Avg Return",
+    "hero.description": "Whalyx tracked ETF technical analysis",
+    "hero.cta":         "View ETF Analysis",
 
     "pilots.title":     "Super Investors",
     "pilots.subtitle":  "Based on 13F filings — click for portfolio detail",
@@ -224,5 +231,14 @@ export const DICT: Record<Lang, Record<string, string>> = {
     "mylab.content.error":    "Failed to load content",
     "mylab.close":            "Close",
     "mylab.size":             "size",
+
+    "holdings.title":         "Holdings Composition",
+    "holdings.top":           "Top Holdings",
+    "holdings.sector":        "Sector Weights",
+    "holdings.weight":        "Weight",
+    "holdings.loading":       "Loading holdings...",
+    "holdings.empty":         "No holdings data available",
+    "holdings.close":         "Close",
+    "holdings.unavailable":   "Holdings data is not available for this ETF",
   },
 };

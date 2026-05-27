@@ -7,14 +7,14 @@ type TimeRange = "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL";
 
 const RANGES: TimeRange[] = ["1W", "1M", "3M", "YTD", "1Y", "ALL"];
 
-// 30일 베이스 수익률 → 다른 기간 추정 multiplier
+// 1Y 베이스 수익률 → 다른 기간 추정 multiplier
 const RANGE_MULTIPLIER: Record<TimeRange, number> = {
-  "1W":  0.22,
-  "1M":  1.00,
-  "3M":  2.40,
-  "YTD": 1.80,
-  "1Y":  3.60,
-  "ALL": 8.50,
+  "1W":  0.06,
+  "1M":  0.28,
+  "3M":  0.67,
+  "YTD": 0.50,
+  "1Y":  1.00,
+  "ALL": 2.40,
 };
 
 const SEEDS: Record<TimeRange, number[]> = {
@@ -109,29 +109,31 @@ export default function HeroSection({
           </div>
         </div>
 
-        <button
-          onClick={onCtaClick}
-          style={{
-            background: "var(--text-primary)",
-            color: "var(--bg)",
-            border: "none",
-            padding: "12px 22px",
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "transform 0.1s, opacity 0.15s",
-            letterSpacing: "-0.01em",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.03)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-          }}
-        >
-          {_ctaLabel} →
-        </button>
+        {onCtaClick && (
+          <button
+            onClick={onCtaClick}
+            style={{
+              background: "var(--text-primary)",
+              color: "var(--bg)",
+              border: "none",
+              padding: "12px 22px",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "transform 0.1s, opacity 0.15s",
+              letterSpacing: "-0.01em",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.03)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+            }}
+          >
+            {_ctaLabel} →
+          </button>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>

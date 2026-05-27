@@ -55,11 +55,12 @@ function fmtChg(v: number | null | undefined): string {
 
 interface Props {
   onSelect: (ticker: string) => void;
+  onSelectEtf?: (item: ETFSignalItem) => void;
   usdKrw?: number;
   data?: ETFSignalsData | null;
 }
 
-export default function ETFStockSection({ onSelect, usdKrw, data: dataProp }: Props) {
+export default function ETFStockSection({ onSelect, onSelectEtf, usdKrw, data: dataProp }: Props) {
   const { t, lang } = useT();
   const [data, setData] = useState<ETFSignalsData | null>(dataProp ?? null);
   const [loading, setLoading] = useState(!dataProp);
@@ -149,7 +150,14 @@ export default function ETFStockSection({ onSelect, usdKrw, data: dataProp }: Pr
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-          {items.map(item => <SignalCard key={item.ticker} item={item} onSelect={onSelect} usdKrw={usdKrw} />)}
+          {items.map(item => (
+            <SignalCard
+              key={item.ticker}
+              item={item}
+              onSelect={activeGroup === "etfs" && onSelectEtf ? () => onSelectEtf(item) : () => onSelect(item.ticker)}
+              usdKrw={usdKrw}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -157,7 +165,7 @@ export default function ETFStockSection({ onSelect, usdKrw, data: dataProp }: Pr
 }
 
 
-function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect: (t: string) => void; usdKrw?: number }) {
+function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect: () => void; usdKrw?: number }) {
   const { t } = useT();
   const meta = SIGNAL_META[item.signal];
   const phase = PHASE_META[item.trend_phase ?? "SIDEWAYS"];
@@ -166,7 +174,7 @@ function SignalCard({ item, onSelect, usdKrw }: { item: ETFSignalItem; onSelect:
 
   return (
     <button
-      onClick={() => onSelect(item.ticker)}
+      onClick={onSelect}
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",

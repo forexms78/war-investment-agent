@@ -6,28 +6,25 @@ import Link from "next/link";
 import {
   InvestorSummary, HotStock, RecommendedStock, CoinData,
   RealEstateIndicator, MoneyFlowAsset, NewsItem, CommodityData,
-  DailySignal, KoreaRates, BondData, ETFSignalsData,
+  KoreaRates, BondData, ETFSignalsData, ETFSignalItem,
 } from "@/types";
 import MoneyFlowSection from "@/components/MoneyFlowSection";
 import SkeletonCard from "@/components/SkeletonCard";
-import DailySignalSection from "@/components/DailySignalSection";
 import MarketsSection from "@/components/MarketsSection";
 import ETFStockSection from "@/components/ETFStockSection";
 import HeroSection from "@/components/HeroSection";
-import PilotsSection from "@/components/PilotsSection";
-import TopPerformersSection from "@/components/TopPerformersSection";
 import Tooltip from "@/components/Tooltip";
 import MyLabSection from "@/components/MyLabSection";
 import { useT } from "@/contexts/LanguageContext";
 
-// 클릭 시점에만 chunk 로드 — 초기 번들 크기 축소
-const InvestorModal     = dynamic(() => import("@/components/InvestorModal"));
-const StockModal        = dynamic(() => import("@/components/StockModal"));
-const ForeignFlowSection   = dynamic(() => import("@/components/ForeignFlowSection"));
+const InvestorModal      = dynamic(() => import("@/components/InvestorModal"));
+const StockModal         = dynamic(() => import("@/components/StockModal"));
+const ETFHoldingsModal   = dynamic(() => import("@/components/ETFHoldingsModal"));
+const ForeignFlowSection = dynamic(() => import("@/components/ForeignFlowSection"));
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "signal" | "markets" | "etfstocks" | "foreign" | "mylab";
+type Tab = "etfstocks" | "markets" | "foreign" | "mylab";
 type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds";
 
 function fmtTime(d: Date) {
@@ -39,7 +36,7 @@ function fmtTime(d: Date) {
 
 export default function Home() {
   const { t, lang, toggleLang } = useT();
-  const [activeTab, setActiveTab] = useState<Tab>("signal");
+  const [activeTab, setActiveTab] = useState<Tab>("etfstocks");
   const [marketSubTab, setMarketSubTab] = useState<MarketTab>("stocks");
 
   // 공통 데이터
@@ -47,12 +44,13 @@ export default function Home() {
   const [hotStocks, setHotStocks] = useState<HotStock[]>([]);
   const [recommendations, setRecommendations] = useState<{ buy: RecommendedStock[]; sell: RecommendedStock[] } | null>(null);
   const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number; korea_rates?: KoreaRates } | null>(null);
-  const [dailySignal, setDailySignal] = useState<DailySignal | null>(null);
   const [etfSignals, setEtfSignals] = useState<ETFSignalsData | null>(null);
+  const [selectedEtf, setSelectedEtf] = useState<ETFSignalItem | null>(null);
   const [loadingInvestors, setLoadingInvestors] = useState(true);
   const [initialFetchedAt, setInitialFetchedAt] = useState<Date | null>(null);
   const [marketDrivers, setMarketDrivers] = useState<{ headline: string; impact: string; direction: string; url?: string; source?: string }[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(true);
+  const etfSignalsForHero = etfSignals?.etfs ?? [];
 
   // 마켓 서브 데이터 (lazy)
   const [coins, setCoins] = useState<CoinData[]>([]);
@@ -73,17 +71,14 @@ export default function Home() {
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("light");
 
-  // Whalyx Top 8 평균 30일 수익률 — 13F 투자자들의 모든 holdings change_30d_pct 평균
   const heroReturn = useMemo(() => {
-    if (investors.length === 0) return 12.4;
-    const all = investors.flatMap(inv =>
-      inv.holdings_data
-        .map(h => h.change_30d_pct)
-        .filter((v): v is number => v != null)
-    );
-    if (all.length === 0) return 12.4;
-    return all.reduce((s, v) => s + v, 0) / all.length;
-  }, [investors]);
+    if (etfSignalsForHero.length === 0) return 8.5;
+    const returns = etfSignalsForHero
+      .map(e => e.change_1y)
+      .filter((v): v is number => v != null);
+    if (returns.length === 0) return 8.5;
+    return returns.reduce((s, v) => s + v, 0) / returns.length;
+  }, [etfSignalsForHero]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -99,23 +94,18 @@ export default function Home() {
       .finally(() => setLoadingDrivers(false));
   }, []);
 
-  // 초기 로드 — ETF·주식 시그널까지 6개 병렬 prefetch
   useEffect(() => {
     Promise.all([
       fetch(`${API}/investors`).then(r => r.json()),
       fetch(`${API}/stocks/hot`).then(r => r.json()),
       fetch(`${API}/stocks/recommendations`).then(r => r.json()),
       fetch(`${API}/money-flow`).then(r => r.json()),
-      fetch(`${API}/daily-signal`).then(r => r.json()),
       fetch(`${API}/etf-signals`).then(r => r.json()),
-    ]).then(([invData, stockData, recData, flowData, signalData, etfData]) => {
+    ]).then(([invData, stockData, recData, flowData, etfData]) => {
       setInvestors(invData.investors || []);
       setHotStocks(stockData.stocks || []);
       setRecommendations(recData);
       setMoneyFlow(flowData);
-      if (signalData?.buy_recommendations || signalData?.headline) {
-        setDailySignal(signalData);
-      }
       if (etfData && Array.isArray(etfData.etfs)) {
         setEtfSignals(etfData);
       }
@@ -157,9 +147,8 @@ export default function Home() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "signal",    label: t("tab.signal")    },
-    { id: "markets",   label: t("tab.markets")   },
     { id: "etfstocks", label: t("tab.etfstocks") },
+    { id: "markets",   label: t("tab.markets")   },
     { id: "foreign",   label: t("tab.foreign")   },
     { id: "mylab",     label: t("tab.mylab")     },
   ];
@@ -335,15 +324,12 @@ export default function Home() {
 
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
 
-        {/* Whale Signal — 메인 진입점 */}
-        {activeTab === "signal" && (
+        {/* ETF·주식 — 메인 랜딩 */}
+        {activeTab === "etfstocks" && (
           <div className="fade-in">
-            <HeroSection
-              return_pct={heroReturn}
-              onCtaClick={() => setActiveTab("etfstocks")}
-            />
+            <HeroSection return_pct={heroReturn} />
 
-            {/* 오늘의 마켓 드라이버 */}
+            {/* 마켓 드라이버 */}
             <div style={{ marginBottom: 28 }}>
               {loadingDrivers ? (
                 <div className="driver-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -394,20 +380,12 @@ export default function Home() {
               )}
             </div>
 
-            {!dailySignal ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-                {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} height={160} />)}
-              </div>
-            ) : (
-              <DailySignalSection
-                data={dailySignal}
-                onTickerSelect={setSelectedStock}
-                onSeeMore={() => setActiveTab("etfstocks")}
-              />
-            )}
-
-            <PilotsSection investors={investors} onSelect={setSelectedInvestor} />
-            <TopPerformersSection stocks={hotStocks} onSelect={setSelectedStock} />
+            <ETFStockSection
+              onSelect={setSelectedStock}
+              onSelectEtf={setSelectedEtf}
+              usdKrw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
+              data={etfSignals}
+            />
 
             {moneyFlow && <MoneyFlowSection data={moneyFlow} korea_rates={moneyFlow.korea_rates} />}
           </div>
@@ -445,14 +423,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* ETF · 주식 매수매도 시그널 (prefetched) */}
-        {activeTab === "etfstocks" && (
-          <ETFStockSection
-            onSelect={setSelectedStock}
-            usdKrw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
-            data={etfSignals}
-          />
-        )}
         {activeTab === "foreign" && (
           <div className="fade-in">
             <ForeignFlowSection />
@@ -469,6 +439,13 @@ export default function Home() {
       )}
       {selectedStock && (
         <StockModal ticker={selectedStock} onClose={() => setSelectedStock(null)} />
+      )}
+      {selectedEtf && (
+        <ETFHoldingsModal
+          etf={selectedEtf}
+          onClose={() => setSelectedEtf(null)}
+          onSelectStock={(ticker) => { setSelectedEtf(null); setSelectedStock(ticker); }}
+        />
       )}
     </div>
   );
