@@ -1,88 +1,229 @@
+/* ─────────────────────────────────────────────────────────────────
+   Whalyx Design System v2 — "Premium Ink"
+   readability-first, dark-mode-native
+
+   Fonts:
+     Pretendard  — Korean + Latin body & UI
+     Newsreader  — serif display for hero numerics
+     JetBrains Mono — tickers, prices, KPIs
+   ───────────────────────────────────────────────────────────────── */
+
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* ── 다크 모드 (기본) ── */
+/* ── DARK MODE (default) ── */
 :root,
 [data-theme="dark"] {
-  --bg: #0A1520;
-  --bg-2: #0E1E30;
-  --card: #12243A;
-  --card-hover: #172D47;
-  --border: #1E3550;
-  --border-light: #2A4A6A;
-  --text-primary: #E8F2FA;
-  --text-secondary: #90BBD6;
-  --text-muted: #6699BB;
-  --accent: #5B9EC9;
-  --accent-dim: rgba(91,158,201,0.12);
-  --accent-glow: rgba(91,158,201,0.25);
-  --green: #10b981;
-  --green-dim: rgba(16,185,129,0.10);
-  --red: #ef4444;
-  --red-dim: rgba(239,68,68,0.10);
-  --gold: #E8A855;
-  --gold-dim: rgba(232,168,85,0.12);
-  --purple: #7AAFC8;
-  --orange: #E8A855;
-  --header-bg: rgba(10,21,32,0.96);
-  --toggle-bg: #1E3550;
+  /* ─ Surfaces ─ */
+  --bg:              #0F1217;
+  --bg-elevated:     #161A20;
+  --surface:         #1B2029;
+  --surface-hover:   #222831;
+  --surface-sunken:  #13171D;
+
+  /* ─ Borders ─ */
+  --border:          rgba(255, 255, 255, 0.06);
+  --border-strong:   rgba(255, 255, 255, 0.12);
+  --divider:         rgba(255, 255, 255, 0.04);
+
+  /* ─ Text ─ */
+  --fg:              #F4F5F7;
+  --fg-muted:        #B6BBC4;
+  --fg-subtle:       #6B7280;
+  --fg-disabled:     #3A4049;
+
+  /* ─ Brand accent — "Whale Blue" ─ */
+  --accent:          #7CC7E8;
+  --accent-strong:   #4DA7CC;
+  --accent-soft:     rgba(124, 199, 232, 0.10);
+  --accent-glow:     rgba(124, 199, 232, 0.22);
+  --accent-fg:       #0F1217;
+
+  /* ─ Semantic — financial ─ */
+  --up:              #4ABF8A;
+  --up-soft:         rgba(74, 191, 138, 0.10);
+  --up-glow:         rgba(74, 191, 138, 0.20);
+  --down:            #E07A7A;
+  --down-soft:       rgba(224, 122, 122, 0.10);
+  --down-glow:       rgba(224, 122, 122, 0.20);
+  --warn:            #D4A85C;
+  --warn-soft:       rgba(212, 168, 92, 0.10);
+
+  /* ─ Signal scale ─ */
+  --sig-strong-buy:  #10B981;
+  --sig-buy:         #34D399;
+  --sig-hold:        #94A3B8;
+  --sig-sell:        #F59E0B;
+  --sig-strong-sell: #EF4444;
+
+  /* ─ Shadows ─ */
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg:  0 24px 60px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 0 4px var(--accent-glow);
+
+  /* ─ Header glass ─ */
+  --header-bg:   rgba(15, 18, 23, 0.78);
+  --header-blur: saturate(140%) blur(20px);
+
+  /* ─ Focus ring ─ */
+  --focus-ring:  0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* ─ Backward compatibility aliases ─ */
+  --bg-2:            var(--bg-elevated);
+  --card:            var(--surface);
+  --card-hover:      var(--surface-hover);
+  --border-light:    var(--border-strong);
+  --text-primary:    var(--fg);
+  --text-secondary:  var(--fg-muted);
+  --text-muted:      var(--fg-subtle);
+  --green:           var(--up);
+  --green-dim:       var(--up-soft);
+  --red:             var(--down);
+  --red-dim:         var(--down-soft);
+  --gold:            var(--warn);
+  --gold-dim:        var(--warn-soft);
+  --orange:          var(--warn);
+  --purple:          var(--accent);
+  --accent-dim:      var(--accent-soft);
+  --toggle-bg:       var(--surface);
 }
 
-/* ── 라이트 모드 (Autopilot 풍) ── */
+/* ── LIGHT MODE ── */
 [data-theme="light"] {
-  --bg: #FFFFFF;
-  --bg-2: #F7F8FA;
-  --card: #FFFFFF;
-  --card-hover: #FAFBFD;
-  --border: #EAECEF;
-  --border-light: #D5D9E0;
-  --text-primary: #0A0E14;
-  --text-secondary: #4A5568;
-  --text-muted: #8B95A1;
-  --accent: #10B981;
-  --accent-dim: rgba(16,185,129,0.08);
-  --accent-glow: rgba(16,185,129,0.20);
-  --green: #10B981;
-  --green-dim: rgba(16,185,129,0.10);
-  --red: #EF4444;
-  --red-dim: rgba(239,68,68,0.10);
-  --gold: #F59E0B;
-  --gold-dim: rgba(245,158,11,0.10);
-  --purple: #6366F1;
-  --orange: #F59E0B;
-  --header-bg: rgba(255,255,255,0.92);
-  --toggle-bg: #F7F8FA;
+  --bg:              #FCFCFB;
+  --bg-elevated:     #FFFFFF;
+  --surface:         #FFFFFF;
+  --surface-hover:   #F7F8FA;
+  --surface-sunken:  #F3F4F6;
+
+  --border:          rgba(15, 23, 32, 0.08);
+  --border-strong:   rgba(15, 23, 32, 0.16);
+  --divider:         rgba(15, 23, 32, 0.05);
+
+  --fg:              #0B0D10;
+  --fg-muted:        #4A5360;
+  --fg-subtle:       #8A93A1;
+  --fg-disabled:     #C5CBD3;
+
+  --accent:          #1E6FA6;
+  --accent-strong:   #144E75;
+  --accent-soft:     rgba(30, 111, 166, 0.08);
+  --accent-glow:     rgba(30, 111, 166, 0.18);
+  --accent-fg:       #FFFFFF;
+
+  --up:              #059669;
+  --up-soft:         rgba(5, 150, 105, 0.08);
+  --up-glow:         rgba(5, 150, 105, 0.18);
+  --down:            #DC2626;
+  --down-soft:       rgba(220, 38, 38, 0.08);
+  --down-glow:       rgba(220, 38, 38, 0.18);
+  --warn:            #D97706;
+  --warn-soft:       rgba(217, 119, 6, 0.10);
+
+  --sig-strong-buy:  #047857;
+  --sig-buy:         #059669;
+  --sig-hold:        #64748B;
+  --sig-sell:        #D97706;
+  --sig-strong-sell: #DC2626;
+
+  --shadow-sm:  0 1px 2px rgba(15, 23, 32, 0.06);
+  --shadow-md:  0 4px 16px rgba(15, 23, 32, 0.06);
+  --shadow-lg:  0 24px 60px rgba(15, 23, 32, 0.10);
+  --shadow-glow: 0 0 0 4px var(--accent-glow);
+
+  --header-bg:   rgba(252, 252, 251, 0.82);
+  --header-blur: saturate(160%) blur(18px);
+
+  --focus-ring:  0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  --bg-2:            var(--bg-elevated);
+  --card:            var(--surface);
+  --card-hover:      var(--surface-hover);
+  --border-light:    var(--border-strong);
+  --text-primary:    var(--fg);
+  --text-secondary:  var(--fg-muted);
+  --text-muted:      var(--fg-subtle);
+  --green:           var(--up);
+  --green-dim:       var(--up-soft);
+  --red:             var(--down);
+  --red-dim:         var(--down-soft);
+  --gold:            var(--warn);
+  --gold-dim:        var(--warn-soft);
+  --orange:          var(--warn);
+  --purple:          var(--accent);
+  --accent-dim:      var(--accent-soft);
+  --toggle-bg:       var(--surface-sunken);
 }
 
+/* ── TYPOGRAPHY ── */
+:root {
+  --font-sans:    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Newsreader', 'Pretendard', Georgia, serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+
+  --r-xs:   4px;
+  --r-sm:   6px;
+  --r-md:   10px;
+  --r-lg:   14px;
+  --r-xl:   18px;
+  --r-pill: 999px;
+
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:  cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-snappy:  cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:    150ms;
+  --dur-base:    220ms;
+}
+
+/* ── BASE ── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--fg);
   background: var(--bg);
-  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
-  line-height: 1.5;
+  -moz-osx-font-smoothing: grayscale;
   word-break: keep-all;
   overflow-wrap: break-word;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss01', 'cv11';
 }
 
-a { color: inherit; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
 
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-disabled); }
 
+::selection { background: var(--accent-glow); color: var(--fg); }
+
+:focus { outline: none; }
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-sm);
+}
+
+/* ── ANIMATIONS ── */
 @keyframes shimmer {
-  0% { background-position: -600px 0; }
-  100% { background-position: 600px 0; }
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, var(--card) 20%, var(--card-hover) 50%, var(--card) 80%);
+  background: linear-gradient(90deg, var(--surface) 20%, var(--surface-hover) 50%, var(--surface) 80%);
   background-size: 1200px 100%;
-  animation: shimmer 1.6s infinite;
-  border-radius: 6px;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: var(--r-sm);
 }
 
 @keyframes loadingBar {
@@ -91,28 +232,29 @@ a { color: inherit; }
   100% { transform: translateX(100%)  scaleX(0.3); }
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: fadeIn 0.25s ease forwards; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn var(--dur-base) var(--ease-out) both; }
 
 @keyframes pulseLive {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.55; transform: scale(0.85); }
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
 }
 
-/* 탭 버튼 텍스트 줄바꿈 방지 */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── TAB / NAV ── */
 .tab-btn {
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* 퀵스탯 바 스크롤바 숨김 */
-.quickstat-bar {
-  scrollbar-width: none;
-}
+.quickstat-bar { scrollbar-width: none; }
 .quickstat-bar::-webkit-scrollbar { display: none; }
 
-/* 모바일 반응형 */
+/* ── RESPONSIVE ── */
 @media (max-width: 768px) {
   .header-inner {
     flex-wrap: wrap !important;
@@ -121,7 +263,6 @@ a { color: inherit; }
     gap: 8px !important;
     flex-direction: row !important;
   }
-  /* 로고+토글 행이 full width 차지, nav는 아래 행 */
   .header-top-row {
     flex: 1 1 100%;
     order: 1;
@@ -135,54 +276,29 @@ a { color: inherit; }
     padding-bottom: 4px;
   }
   .header-nav::-webkit-scrollbar { display: none; }
-  /* 데스크탑 전용 텍스트 숨김 */
-  .header-right {
-    display: none !important;
-  }
-  .grid-investors {
-    grid-template-columns: 1fr !important;
-  }
-  .grid-cards {
-    grid-template-columns: 1fr !important;
-  }
+  .header-right { display: none !important; }
+  .grid-investors { grid-template-columns: 1fr !important; }
+  .grid-cards { grid-template-columns: 1fr !important; }
   .modal-content {
     max-height: 95vh !important;
     border-radius: 12px 12px 0 0 !important;
   }
-  /* 추천 섹션 모바일에서 1열 */
-  .recommend-grid {
-    grid-template-columns: 1fr !important;
-  }
-  /* 웨일 시그널 게이지 배너 — 모바일 1열 */
+  .recommend-grid { grid-template-columns: 1fr !important; }
   .whale-banner {
     grid-template-columns: 1fr !important;
     gap: 16px !important;
   }
-  .whale-banner > div:first-child {
-    min-width: unset !important;
-  }
-  /* 메인 패딩 축소 */
-  main {
-    padding: 20px 16px !important;
-  }
-  /* 핵심 뉴스 3선 — 모바일 1열 */
-  .driver-grid {
-    grid-template-columns: 1fr !important;
-  }
+  .whale-banner > div:first-child { min-width: unset !important; }
+  main { padding: 20px 16px !important; }
+  .driver-grid { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 480px) {
-  /* 매우 좁은 화면 - 투자자 모달 테이블 스크롤 처리 */
   .portfolio-table-row {
     grid-template-columns: 60px 1fr 70px 80px !important;
     font-size: 12px !important;
   }
-  .portfolio-col-hide {
-    display: none !important;
-  }
-}
-
-@media (max-width: 480px) {
+  .portfolio-col-hide { display: none !important; }
   .news-card-img {
     width: 60px !important;
     height: 60px !important;
