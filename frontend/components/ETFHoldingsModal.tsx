@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ETFHoldingsData, ETFSignalItem } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+import { ETFHoldingsData, ETFHoldingItem, ETFSignalItem } from "@/types";
 import { useT } from "@/contexts/LanguageContext";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-const BAR_COLORS = [
+const DONUT_COLORS = [
   "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444",
   "#06b6d4", "#ec4899", "#f97316", "#6366f1", "#84cc16",
 ];
+
+type SortPeriod = "1d" | "7d" | "1m" | "6m";
 
 interface Props {
   etf: ETFSignalItem;
@@ -27,10 +29,18 @@ function fmtChg(v: number | null | undefined): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 }
 
+function getChgByPeriod(h: ETFHoldingItem, period: SortPeriod): number | null | undefined {
+  if (period === "1d") return h.change_1d_pct;
+  if (period === "7d") return h.change_7d_pct;
+  if (period === "1m") return h.change_1m_pct;
+  return h.change_6m_pct;
+}
+
 export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props) {
   const { t } = useT();
   const [data, setData] = useState<ETFHoldingsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sortPeriod, setSortPeriod] = useState<SortPeriod>("1d");
 
   useEffect(() => {
     fetch(`${API}/etf-holdings/${etf.ticker}`)
@@ -47,7 +57,23 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
   }, [onClose]);
 
   const hasHoldings = data && data.holdings.length > 0;
-  const maxWeight = hasHoldings ? Math.max(...data.holdings.map(h => h.weight)) : 0;
+  const isKrEtf = etf.ticker.endsWith(".KS") || etf.ticker.endsWith(".KQ");
+
+  const sortedHoldings = useMemo(() => {
+    if (!data) return [];
+    return [...data.holdings].sort((a, b) => {
+      const av = getChgByPeriod(a, sortPeriod) ?? -999;
+      const bv = getChgByPeriod(b, sortPeriod) ?? -999;
+      return bv - av;
+    });
+  }, [data, sortPeriod]);
+
+  const PERIODS: { id: SortPeriod; label: string }[] = [
+    { id: "1d", label: t("holdings.1d") },
+    { id: "7d", label: t("holdings.7d") },
+    { id: "1m", label: t("holdings.1m") },
+    { id: "6m", label: t("holdings.6m") },
+  ];
 
   return (
     <div
@@ -63,7 +89,7 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
         onClick={e => e.stopPropagation()}
         style={{
           background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: 20, width: "100%", maxWidth: 780,
+          borderRadius: 20, width: "100%", maxWidth: 720,
           maxHeight: "90vh", overflow: "auto",
           boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
         }}
@@ -143,183 +169,158 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock }: Props)
               {t("holdings.loading")}
             </div>
           ) : !hasHoldings ? (
-            <div style={{ textAlign: "center", padding: "40px 0" }}>
-              <div style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 8 }}>
+            <div style={{
+              background: "var(--bg-2)", border: "1px solid var(--border)",
+              borderRadius: 14, padding: "28px 24px", textAlign: "center",
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 10 }}>
                 {t("holdings.unavailable")}
               </div>
+              <div style={{
+                fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6,
+                maxWidth: 420, margin: "0 auto", marginBottom: etf.description ? 16 : 0,
+              }}>
+                {isKrEtf
+                  ? t("holdings.kr_reason")
+                  : t("holdings.us_reason")}
+              </div>
               {etf.description && (
-                <div style={{ color: "var(--text-secondary)", fontSize: 12, lineHeight: 1.6, maxWidth: 400, margin: "0 auto" }}>
+                <div style={{
+                  background: "var(--card)", border: "1px solid var(--border)",
+                  borderRadius: 10, padding: "14px 18px", textAlign: "left",
+                  fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", marginBottom: 6 }}>
+                    ETF DESCRIPTION
+                  </div>
                   {etf.description}
                 </div>
               )}
             </div>
           ) : (
             <>
-              {/* Top Holdings - 수평 바 차트 */}
+              {/* 도넛 차트 — 편입 종목 비중 (메인) */}
               <div style={{ marginBottom: 28 }}>
                 <div style={{
                   fontSize: 13, fontWeight: 700, color: "var(--text-muted)",
-                  letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14,
+                  letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16,
                 }}>
                   {t("holdings.top")}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {data!.holdings.map((h, i) => (
-                    <button
-                      key={h.ticker}
-                      onClick={() => h.ticker && onSelectStock?.(h.ticker)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        background: "transparent", border: "none",
-                        cursor: h.ticker ? "pointer" : "default",
-                        padding: "6px 0", textAlign: "left", width: "100%",
-                        transition: "opacity 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.opacity = "0.8"; }}
-                      onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-                    >
-                      <span style={{
-                        fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
-                        width: 50, flexShrink: 0,
-                      }}>
-                        {h.ticker}
-                      </span>
-                      <div style={{ flex: 1, position: "relative", height: 24, background: "var(--bg-2)", borderRadius: 6, overflow: "hidden" }}>
-                        <div style={{
-                          height: "100%",
-                          width: `${(h.weight / maxWeight) * 100}%`,
-                          background: BAR_COLORS[i % BAR_COLORS.length],
-                          borderRadius: 6,
-                          transition: "width 0.6s ease-out",
-                          minWidth: 2,
-                          opacity: 0.75,
-                        }} />
-                        <span style={{
-                          position: "absolute", top: "50%", transform: "translateY(-50%)",
-                          left: `${Math.min((h.weight / maxWeight) * 100 + 2, 92)}%`,
-                          fontSize: 11, fontWeight: 600, color: "var(--text-secondary)",
-                          whiteSpace: "nowrap",
-                        }}>
-                          {h.weight.toFixed(1)}%
-                        </span>
-                      </div>
-                      <span style={{
-                        fontSize: 11, color: "var(--text-muted)",
-                        width: 100, flexShrink: 0, textAlign: "right",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
-                        {h.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sector Weights - 도넛 차트 */}
-              {data!.sector_weights.length > 0 && (
-                <div style={{ marginBottom: 28 }}>
-                  <div style={{
-                    fontSize: 13, fontWeight: 700, color: "var(--text-muted)",
-                    letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14,
-                  }}>
-                    {t("holdings.sector")}
-                  </div>
-                  <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
-                    <DonutChart sectors={data!.sector_weights} />
-                    <div style={{ flex: 1, minWidth: 200 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {data!.sector_weights.map(s => (
-                          <div key={s.sector} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{
-                              width: 10, height: 10, borderRadius: 3,
-                              background: s.color, flexShrink: 0,
-                            }} />
-                            <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1 }}>
-                              {s.sector}
-                            </span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-                              {s.weight.toFixed(1)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                <div style={{ display: "flex", gap: 28, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+                  <HoldingsDonut holdings={data!.holdings} />
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {data!.holdings.map((h, i) => (
+                        <button
+                          key={h.ticker}
+                          onClick={() => h.ticker && onSelectStock?.(h.ticker)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            background: "transparent", border: "none", padding: "4px 0",
+                            cursor: h.ticker ? "pointer" : "default",
+                            textAlign: "left", width: "100%",
+                            transition: "opacity 0.15s",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.opacity = "0.7"; }}
+                          onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+                        >
+                          <span style={{
+                            width: 10, height: 10, borderRadius: 3,
+                            background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0,
+                          }} />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", width: 50 }}>
+                            {h.ticker}
+                          </span>
+                          <span style={{
+                            fontSize: 11, color: "var(--text-muted)", flex: 1,
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}>
+                            {h.name}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", flexShrink: 0 }}>
+                            {h.weight.toFixed(1)}%
+                          </span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* 편입 종목 등락률 테이블 */}
+              {/* 편입 종목 등락률 — 기간 선택 + 정렬 */}
               {data!.holdings.some(h => h.current_price != null) && (
                 <div>
                   <div style={{
-                    fontSize: 13, fontWeight: 700, color: "var(--text-muted)",
-                    letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 14, flexWrap: "wrap", gap: 8,
                   }}>
-                    {t("holdings.perf")}
+                    <div style={{
+                      fontSize: 13, fontWeight: 700, color: "var(--text-muted)",
+                      letterSpacing: "0.06em", textTransform: "uppercase",
+                    }}>
+                      {t("holdings.perf")}
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {PERIODS.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setSortPeriod(p.id)}
+                          style={{
+                            padding: "5px 14px", borderRadius: 999,
+                            background: sortPeriod === p.id ? "var(--text-primary)" : "var(--bg-2)",
+                            color: sortPeriod === p.id ? "var(--bg)" : "var(--text-muted)",
+                            border: sortPeriod === p.id ? "none" : "1px solid var(--border)",
+                            fontSize: 11, fontWeight: 700, cursor: "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* 테이블 헤더 */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "60px 1fr 70px 60px 60px 60px 60px",
-                    gap: 4, padding: "8px 0",
-                    borderBottom: "1px solid var(--border)",
-                    fontSize: 10, fontWeight: 700, color: "var(--text-muted)",
-                    letterSpacing: "0.04em",
-                  }}>
-                    <span>Ticker</span>
-                    <span>Name</span>
-                    <span style={{ textAlign: "right" }}>{t("holdings.price")}</span>
-                    <span style={{ textAlign: "right" }}>{t("holdings.1d")}</span>
-                    <span style={{ textAlign: "right" }}>{t("holdings.7d")}</span>
-                    <span style={{ textAlign: "right" }}>{t("holdings.1m")}</span>
-                    <span style={{ textAlign: "right" }}>{t("holdings.6m")}</span>
-                  </div>
-
-                  {/* 테이블 본문 */}
-                  {data!.holdings.map((h, i) => (
-                    <button
-                      key={h.ticker}
-                      onClick={() => h.ticker && onSelectStock?.(h.ticker)}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "60px 1fr 70px 60px 60px 60px 60px",
-                        gap: 4, padding: "10px 0",
-                        borderBottom: "1px solid var(--border)",
-                        background: "transparent", border: "none", width: "100%",
-                        cursor: h.ticker ? "pointer" : "default",
-                        textAlign: "left",
-                        transition: "background 0.1s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-2)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-                    >
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-                        {h.ticker}
-                      </span>
-                      <span style={{
-                        fontSize: 11, color: "var(--text-muted)",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>
-                        {h.name}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", textAlign: "right" }}>
-                        {h.current_price != null ? `$${h.current_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "-"}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_1d_pct), textAlign: "right" }}>
-                        {fmtChg(h.change_1d_pct)}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_7d_pct), textAlign: "right" }}>
-                        {fmtChg(h.change_7d_pct)}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_1m_pct), textAlign: "right" }}>
-                        {fmtChg(h.change_1m_pct)}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: chgColor(h.change_6m_pct), textAlign: "right" }}>
-                        {fmtChg(h.change_6m_pct)}
-                      </span>
-                    </button>
-                  ))}
+                  {sortedHoldings.map((h, i) => {
+                    const chgVal = getChgByPeriod(h, sortPeriod);
+                    const isUp = (chgVal ?? 0) >= 0;
+                    return (
+                      <button
+                        key={h.ticker}
+                        onClick={() => h.ticker && onSelectStock?.(h.ticker)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          padding: "10px 4px",
+                          borderBottom: "1px solid var(--border)",
+                          background: "transparent", border: "none", borderBottomStyle: "solid", borderBottomWidth: 1, borderBottomColor: "var(--border)",
+                          width: "100%", cursor: h.ticker ? "pointer" : "default",
+                          textAlign: "left", transition: "background 0.1s",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-2)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                      >
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", width: 20, textAlign: "center", flexShrink: 0 }}>
+                          {i + 1}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{h.ticker}</div>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</div>
+                        </div>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
+                          {h.weight.toFixed(1)}%
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600, width: 55, textAlign: "right", flexShrink: 0 }}>
+                          {h.current_price != null ? `$${h.current_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "-"}
+                        </span>
+                        <span style={{
+                          fontSize: 13, fontWeight: 800, width: 70, textAlign: "right", flexShrink: 0,
+                          color: chgColor(chgVal),
+                        }}>
+                          {fmtChg(chgVal)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </>
@@ -343,18 +344,19 @@ function Sep() {
   return <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 4px" }} />;
 }
 
-function DonutChart({ sectors }: { sectors: { sector: string; weight: number; color: string }[] }) {
-  const size = 160;
+function HoldingsDonut({ holdings }: { holdings: ETFHoldingItem[] }) {
+  const size = 200;
   const cx = size / 2;
   const cy = size / 2;
-  const outerR = 70;
-  const innerR = 45;
+  const outerR = 90;
+  const innerR = 58;
 
-  const total = sectors.reduce((s, v) => s + v.weight, 0);
+  const sorted = [...holdings].sort((a, b) => b.weight - a.weight);
+  const total = sorted.reduce((s, v) => s + v.weight, 0);
   let cumAngle = -90;
 
-  const paths = sectors.map(s => {
-    const angle = (s.weight / total) * 360;
+  const paths = sorted.map((h, i) => {
+    const angle = (h.weight / total) * 360;
     const startAngle = cumAngle;
     const endAngle = cumAngle + angle;
     cumAngle = endAngle;
@@ -381,17 +383,17 @@ function DonutChart({ sectors }: { sectors: { sector: string; weight: number; co
       "Z",
     ].join(" ");
 
-    return <path key={s.sector} d={d} fill={s.color} opacity={0.85} />;
+    return <path key={h.ticker} d={d} fill={DONUT_COLORS[i % DONUT_COLORS.length]} opacity={0.85} />;
   });
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
       {paths}
-      <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-primary)" fontSize="18" fontWeight="800">
-        {sectors.length}
+      <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--text-primary)" fontSize="22" fontWeight="800">
+        {sorted.length}
       </text>
-      <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--text-muted)" fontSize="10">
-        sectors
+      <text x={cx} y={cy + 12} textAnchor="middle" fill="var(--text-muted)" fontSize="10" fontWeight="600">
+        holdings
       </text>
     </svg>
   );
