@@ -1,6 +1,6 @@
 """ETF 편입 종목(Holdings) 조회 서비스
 
-yfinance funds_data로 편입 종목·섹터 비중 조회.
+1차: Yahoo REST quoteSummary(crumb 인증) → 2차: yfinance 폴백.
 편입 종목별 현재가·등락률은 v8 chart 병렬 조회.
 """
 import requests
@@ -9,7 +9,9 @@ from backend.services.db_cache import db_get, db_set
 
 _session = requests.Session()
 _session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/131.0.0.0 Safari/537.36"
 })
 
 SECTOR_LABELS = {
@@ -42,8 +44,122 @@ SECTOR_COLORS = {
 
 HOLDINGS_TTL = 86400
 
+_crumb_cache: dict = {"crumb": None, "cookies": None}
+
+
+def _get_yahoo_crumb() -> tuple[str, requests.cookies.RequestsCookieJar] | None:
+    """Yahoo Finance crumb + cookie 획득 (세션 기반)."""
+    if _crumb_cache["crumb"] and _crumb_cache["cookies"]:
+        return _crumb_cache["crumb"], _crumb_cache["cookies"]
+    try:
+        s = requests.Session()
+        s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/131.0.0.0 Safari/537.36"
+        })
+        s.get("https://finance.yahoo.com/quote/SPY", timeout=10)
+        crumb_resp = s.get(
+            "https://query2.finance.yahoo.com/v1/test/getcrumb",
+            timeout=10,
+        )
+        crumb = crumb_resp.text.strip()
+        if not crumb or len(crumb) > 50:
+            return None
+        _crumb_cache["crumb"] = crumb
+        _crumb_cache["cookies"] = s.cookies
+        return crumb, s.cookies
+    except Exception as e:
+        print(f"[etf_holdings] crumb fetch failed: {e}")
+        return None
+
+
+def _fetch_holdings_rest(ticker: str) -> dict | None:
+    """Yahoo quoteSummary REST API (crumb 인증) 로 편입종목 조회."""
+    auth = _get_yahoo_crumb()
+    if not auth:
+        return None
+    crumb, cookies = auth
+    try:
+        url = (
+            f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+            f"?modules=topHoldings&crumb={crumb}"
+        )
+        r = requests.get(
+            url,
+            cookies=cookies,
+            headers=_session.headers,
+            timeout=15,
+        )
+        if r.status_code == 401:
+            _crumb_cache["crumb"] = None
+            _crumb_cache["cookies"] = None
+            auth2 = _get_yahoo_crumb()
+            if not auth2:
+                return None
+            crumb2, cookies2 = auth2
+            url2 = (
+                f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+                f"?modules=topHoldings&crumb={crumb2}"
+            )
+            r = requests.get(
+                url2,
+                cookies=cookies2,
+                headers=_session.headers,
+                timeout=15,
+            )
+        r.raise_for_status()
+        data = r.json()
+
+        result_data = data.get("quoteSummary", {}).get("result", [])
+        if not result_data:
+            return None
+
+        top_holdings_raw = result_data[0].get("topHoldings", {})
+        rows = top_holdings_raw.get("holdings", [])
+        if not rows:
+            return None
+
+        holdings = []
+        for row in rows:
+            sym = row.get("symbol", "")
+            name = row.get("holdingName", "")
+            pct_raw = row.get("holdingPercent", {})
+            pct = pct_raw.get("raw", 0) if isinstance(pct_raw, dict) else float(pct_raw or 0)
+            if sym:
+                holdings.append({
+                    "ticker": sym,
+                    "name":   name,
+                    "weight": round(pct * 100, 2),
+                })
+
+        sector_weights = []
+        sw = top_holdings_raw.get("sectorWeightings", [])
+        for sector_dict in sw:
+            for key, val_obj in sector_dict.items():
+                pct_val = val_obj.get("raw", 0) if isinstance(val_obj, dict) else float(val_obj or 0)
+                pct_val *= 100
+                if pct_val > 0.1:
+                    label = SECTOR_LABELS.get(key, key.replace("_", " ").title())
+                    sector_weights.append({
+                        "sector": label,
+                        "weight": round(pct_val, 2),
+                        "color":  SECTOR_COLORS.get(label, "#94a3b8"),
+                    })
+        sector_weights.sort(key=lambda x: -x["weight"])
+
+        print(f"[etf_holdings] REST OK for {ticker}: {len(holdings)} holdings")
+        return {
+            "holdings":       holdings,
+            "sector_weights": sector_weights,
+        }
+    except Exception as e:
+        print(f"[etf_holdings] REST failed for {ticker}: {e}")
+        return None
+
 
 def _fetch_yfinance_holdings(ticker: str) -> dict | None:
+    """yfinance funds_data 폴백."""
     try:
         import yfinance as yf
         etf = yf.Ticker(ticker)
@@ -76,12 +192,13 @@ def _fetch_yfinance_holdings(ticker: str) -> dict | None:
         if not holdings:
             return None
 
+        print(f"[etf_holdings] yfinance OK for {ticker}: {len(holdings)} holdings")
         return {
             "holdings":       holdings,
             "sector_weights": sector_weights,
         }
     except Exception as e:
-        print(f"[etf_holdings] yfinance fetch failed for {ticker}: {e}")
+        print(f"[etf_holdings] yfinance failed for {ticker}: {e}")
         return None
 
 
@@ -128,12 +245,14 @@ def _fetch_holding_prices(tickers: list[str]) -> dict[str, dict]:
 
 
 def get_etf_holdings(ticker: str) -> dict:
-    cache_key = f"etf_holdings_v4:{ticker}"
+    cache_key = f"etf_holdings_v5:{ticker}"
     cached = db_get(cache_key, ttl=HOLDINGS_TTL)
     if cached:
         return cached
 
-    data = _fetch_yfinance_holdings(ticker)
+    data = _fetch_holdings_rest(ticker)
+    if not data:
+        data = _fetch_yfinance_holdings(ticker)
     if not data:
         return {
             "ticker":         ticker,
@@ -157,7 +276,7 @@ def get_etf_holdings(ticker: str) -> dict:
         "ticker":         ticker,
         "holdings":       data["holdings"],
         "sector_weights": data["sector_weights"],
-        "source":         "yfinance",
+        "source":         "yahoo_rest" if data else "yfinance",
     }
     db_set(cache_key, result)
     return result
