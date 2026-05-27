@@ -760,6 +760,16 @@ button { font-family: inherit; cursor: pointer; }
 .wx-full-name { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wx-full-pct { font-family: var(--font-mono); color: var(--fg-subtle); text-align: right; }
 
+.wx-holdings-ext {
+  display: block; margin-top: 12px; padding: 8px 12px;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  border-radius: var(--r-sm); text-align: center;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--accent); text-decoration: none;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.wx-holdings-ext:hover { color: var(--fg); border-color: var(--accent); background: var(--accent-soft); }
+
 .wx-modal-foot {
   padding: 16px 28px 20px;
   display: flex; align-items: center; justify-content: space-between;

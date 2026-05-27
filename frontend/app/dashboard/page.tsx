@@ -69,7 +69,7 @@ export default function Home() {
 
   const [selectedInvestor, setSelectedInvestor] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   const heroReturn = useMemo(() => {
     if (etfSignalsForHero.length === 0) return 8.5;

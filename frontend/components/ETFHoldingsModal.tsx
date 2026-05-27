@@ -256,6 +256,7 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock, usdKrw }
               holdings={holdings}
               lang={lang}
               onSelectStock={onSelectStock}
+              etfTicker={etf.ticker}
             />
           </div>
         ) : (
@@ -278,10 +279,11 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock, usdKrw }
   );
 }
 
-function HoldingsDonut({ holdings, lang, onSelectStock }: {
+function HoldingsDonut({ holdings, lang, onSelectStock, etfTicker }: {
   holdings: ETFHoldingItem[];
   lang: string;
   onSelectStock?: (ticker: string) => void;
+  etfTicker: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -398,6 +400,16 @@ function HoldingsDonut({ holdings, lang, onSelectStock }: {
                   );
                 })}
               </div>
+              <a
+                className="wx-holdings-ext"
+                href={`https://www.etf.com/${etfTicker}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {lang === "ko"
+                  ? `etf.com에서 ${etfTicker} 전체 편입종목 보기 →`
+                  : `View all ${etfTicker} holdings on etf.com →`}
+              </a>
             </div>
           </div>
         </div>
