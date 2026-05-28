@@ -6,7 +6,8 @@ type StatusKind = "regular" | "ext" | "closed";
 type Segment = { label: string; kind: Exclude<StatusKind, "closed">; start: number; end: number };
 
 const KR_SEGMENTS: Segment[] = [
-  { label: "장전 동시호가", kind: "ext", start: 8 * 60 + 30, end: 9 * 60 },        // 08:30~09:00
+  { label: "프리마켓", kind: "ext", start: 8 * 60 + 30, end: 8 * 60 + 40 },         // 08:30~08:40 (장전 시간외)
+  { label: "장전 동시호가", kind: "ext", start: 8 * 60 + 40, end: 9 * 60 },         // 08:40~09:00 (시가 결정)
   { label: "정규장", kind: "regular", start: 9 * 60, end: 15 * 60 + 30 },          // 09:00~15:30
   { label: "장후 시간외", kind: "ext", start: 15 * 60 + 40, end: 16 * 60 },         // 15:40~16:00
   { label: "시간외 단일가", kind: "ext", start: 16 * 60, end: 18 * 60 },            // 16:00~18:00
@@ -21,7 +22,7 @@ const US_SEGMENTS: Segment[] = [
 
 const KR_SCHEDULE = [
   { label: "장전 동시호가", time: "08:30 ~ 09:00", note: "시가 결정", key: "장전 동시호가" },
-  { label: "프리마켓(장전 시간외)", time: "08:30 ~ 08:40", note: "전일 종가", key: "" },
+  { label: "프리마켓(장전 시간외)", time: "08:30 ~ 08:40", note: "전일 종가", key: "프리마켓" },
   { label: "정규장", time: "09:00 ~ 15:30", note: "메인 거래", key: "정규장" },
   { label: "장후 시간외(애프터)", time: "15:40 ~ 16:00", note: "당일 종가", key: "장후 시간외" },
   { label: "시간외 단일가", time: "16:00 ~ 18:00", note: "10분 단위 · ±10%", key: "시간외 단일가" },
@@ -80,41 +81,54 @@ function fmtRemain(min: number): string {
   return `${min}분`;
 }
 
-function nextOpenRemain(minutes: number, dow: number, segs: Segment[]): number {
-  const starts = segs.map((s) => s.start).sort((a, b) => a - b);
+// 현재 시각 이후 가장 먼저 시작하는 세션(다음 장)을 찾는다. 없으면 다음 영업일 첫 세션.
+function nextSession(minutes: number, dow: number, segs: Segment[]): { remain: number; label: string } {
+  const sorted = [...segs].sort((a, b) => a.start - b.start);
   const weekend = dow === 0 || dow === 6;
   if (!weekend) {
-    const later = starts.find((s) => s > minutes);
-    if (later !== undefined) return later - minutes;
+    const nx = sorted.find((s) => s.start > minutes);
+    if (nx) return { remain: nx.start - minutes, label: nx.label };
   }
   let days = 1;
   let wd = (dow + 1) % 7;
   while (wd === 0 || wd === 6) { days++; wd = (wd + 1) % 7; }
-  return days * 1440 + starts[0] - minutes;
+  return { remain: days * 1440 + sorted[0].start - minutes, label: sorted[0].label };
 }
 
 type MarketState = {
   label: string;
   kind: StatusKind;
-  remainMin: number;
-  kstClock: string; // open 또는 close 시각(KST)
   isOpen: boolean;
+  closeKstClock: string;   // 현재 세션 마감 시각(KST), 마감 상태면 빈 문자열
+  closeRemainMin: number;
+  nextLabel: string;       // 다음 장 이름
+  nextOpenKstClock: string; // 다음 장 개장 시각(KST)
+  nextOpenRemainMin: number;
 };
 
 function computeMarket(now: Date, tz: string, segs: Segment[]): MarketState {
   const { minutes, dow } = zoned(now, tz);
   const kst = zoned(now, "Asia/Seoul");
   const weekend = dow === 0 || dow === 6;
+  const ns = nextSession(minutes, dow, segs);
+  const next = {
+    nextLabel: ns.label,
+    nextOpenKstClock: fmtClock(kst.minutes + ns.remain),
+    nextOpenRemainMin: ns.remain,
+  };
   if (!weekend) {
     for (const s of segs) {
       if (minutes >= s.start && minutes < s.end) {
-        const remain = s.end - minutes;
-        return { label: s.label, kind: s.kind, remainMin: remain, kstClock: fmtClock(kst.minutes + remain), isOpen: true };
+        const closeRemain = s.end - minutes;
+        return {
+          label: s.label, kind: s.kind, isOpen: true,
+          closeKstClock: fmtClock(kst.minutes + closeRemain), closeRemainMin: closeRemain,
+          ...next,
+        };
       }
     }
   }
-  const remain = nextOpenRemain(minutes, dow, segs);
-  return { label: "마감", kind: "closed", remainMin: remain, kstClock: fmtClock(kst.minutes + remain), isOpen: false };
+  return { label: "마감", kind: "closed", isOpen: false, closeKstClock: "", closeRemainMin: 0, ...next };
 }
 
 const DOT_COLOR: Record<StatusKind, string> = {
@@ -232,20 +246,22 @@ function MarketBlock({
 
       {state && (
         <div style={{
-          display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
-          padding: "6px 10px", borderRadius: 8,
+          marginBottom: 8, padding: "8px 10px", borderRadius: 8,
           background: state.isOpen ? "var(--accent-dim)" : "var(--bg-2)",
           border: `1px solid ${state.isOpen ? "var(--accent-glow)" : "var(--border)"}`,
         }}>
-          <span style={{
-            width: 7, height: 7, borderRadius: "50%", background: DOT_COLOR[state.kind], flexShrink: 0,
-          }} />
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>{state.label}</span>
-          <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-            {state.isOpen
-              ? `${state.kstClock} 마감 · ${fmtRemain(state.remainMin)} 남음`
-              : `${state.kstClock} 개장 · ${fmtRemain(state.remainMin)} 후`}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: DOT_COLOR[state.kind], flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>{state.label}</span>
+            {state.isOpen && (
+              <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                {state.closeKstClock} 마감 · {fmtRemain(state.closeRemainMin)} 남음
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+            다음 장 {state.nextLabel} · {state.nextOpenKstClock} 개장 · {fmtRemain(state.nextOpenRemainMin)} 후
+          </div>
         </div>
       )}
 
