@@ -4,8 +4,8 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "Whalyx | Whale Tracker",
-  description: "워런 버핏·드러켄밀러 등 SEC 13F 기관 투자자의 매수·매도 동향을 실시간으로 추적하세요. 금리·주식·코인·부동산 자금 흐름 한눈에 파악.",
+  title: "Whalyx — AI 주식 투자 인텔리전스",
+  description: "시장이 흔들리는 순간, 무엇을 사고 팔지 AI가 함께 읽는다. ETF·주식 매매 시그널, 외국인 매매, 한미 금리, 내 포트폴리오까지 한 화면에서 보는 AI 주식 투자 파트너.",
   icons: {
     icon: "/favicon.svg",
     apple: "/favicon.svg",
