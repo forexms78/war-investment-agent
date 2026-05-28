@@ -105,18 +105,27 @@ export default function MarketsSection(props: MarketsProps) {
       {/* 주식 */}
       {activeTab === "stocks" && (
         <div className="fade-in">
-          <HotStocksBar
-            stocks={props.hotStocks}
-            onSelect={props.onSelectStock}
-            usd_krw={props.usd_krw}
-          />
-          {props.recommendations && (
-            <RecommendSection
-              recommendations={props.recommendations}
-              onSelect={props.onSelectStock}
-              usd_krw={props.usd_krw}
-            />
-          )}
+          {/* 좌우 레이아웃: 왼쪽 고래 종목 + 오른쪽 매수/매도 추천 */}
+          <div className="wx-market-stocks-layout">
+            <div className="wx-market-stocks-left">
+              <HotStocksBar
+                stocks={props.hotStocks}
+                onSelect={props.onSelectStock}
+                usd_krw={props.usd_krw}
+              />
+            </div>
+            <div className="wx-market-stocks-right">
+              {props.recommendations && (
+                <RecommendSection
+                  recommendations={props.recommendations}
+                  onSelect={props.onSelectStock}
+                  usd_krw={props.usd_krw}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* 투자자 카드 그리드 */}
           <div style={{ marginBottom: 16, display: "flex", alignItems: "baseline", gap: 8 }}>
             <span style={{ fontSize: 18, fontWeight: 700 }}>{t("markets.investors.title")}</span>
             <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t("markets.investors.subtitle")}</span>
