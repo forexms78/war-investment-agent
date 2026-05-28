@@ -342,7 +342,7 @@ export default function Home() {
               marketDrivers={marketDrivers}
             />
 
-            {moneyFlow && <MoneyFlowSection data={moneyFlow} korea_rates={moneyFlow.korea_rates} />}
+            {/* MoneyFlowSection 비활성 — 데이터는 유지, 다른 탭에서 재사용 예정 */}
           </div>
         )}
 
