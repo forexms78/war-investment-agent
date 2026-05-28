@@ -112,3 +112,36 @@ def get_korea_rates() -> dict:
         "usd_krw_change_1d": usd_krw_change_1d,  # 전일 대비 변동률 (%)
         "updated_at":        datetime.now().isoformat(),
     }
+
+
+def get_korea_rates_detail() -> dict:
+    """한국 금리 상세 (추가 항목 + 최근 5일 추이)"""
+    base_rate = _get_bok("722Y001", "0101000", "D")
+    treasury_1y = _get_bok("817Y002", "010190000", "D")
+    treasury_3y = _get_bok("817Y002", "010200000", "D")
+    treasury_5y = _get_bok("817Y002", "010200001", "D")
+    treasury_10y = _get_bok("817Y002", "010210000", "D")
+    cd_rate = _get_bok("817Y002", "010502000", "D")
+    corp_aa = _get_bok("817Y002", "010300000", "D")
+
+    treasury_3y_hist = _get_bok_rows("817Y002", "010200000", "D", count=5)
+    treasury_10y_hist = _get_bok_rows("817Y002", "010210000", "D", count=5)
+
+    def _change(hist: list[float]) -> float | None:
+        if len(hist) >= 2:
+            return round(hist[-1] - hist[-2], 3)
+        return None
+
+    return {
+        "base_rate": base_rate,
+        "treasury_1y": treasury_1y,
+        "treasury_3y": treasury_3y,
+        "treasury_5y": treasury_5y,
+        "treasury_10y": treasury_10y,
+        "cd_rate": cd_rate,
+        "corp_aa": corp_aa,
+        "treasury_3y_change": _change(treasury_3y_hist),
+        "treasury_10y_change": _change(treasury_10y_hist),
+        "spread_10y_3y": round(treasury_10y - treasury_3y, 3) if treasury_10y and treasury_3y else None,
+        "updated_at": datetime.now().isoformat(),
+    }

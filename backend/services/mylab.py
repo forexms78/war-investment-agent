@@ -10,6 +10,7 @@ MYLAB_PASSWORD = os.getenv("MYLAB_PASSWORD", "")
 REPO = "forexms78/stock78"
 BRANCH = "main"
 ANALYSES_PATH = "analyses"
+SNAPSHOTS_PATH = "snapshots"
 
 
 def _headers() -> dict:
@@ -96,6 +97,20 @@ def check_password(password: str) -> bool:
     if not MYLAB_PASSWORD:
         return False
     return password == MYLAB_PASSWORD
+
+
+def list_snapshots() -> list[dict]:
+    """stock78/snapshots/ 폴더의 스냅샷 파일 목록 (날짜 역순)"""
+    files = _fetch_md_files(SNAPSHOTS_PATH)
+    return sorted(files, key=lambda x: x["name"], reverse=True)
+
+
+def get_snapshot_content(filename: str) -> Optional[dict]:
+    """특정 스냅샷 파일 내용 반환"""
+    if ".." in filename:
+        return None
+    path = f"{SNAPSHOTS_PATH}/{filename}" if not filename.startswith(SNAPSHOTS_PATH) else filename
+    return get_analysis_content(path)
 
 
 # ── portfolio.md 파서 ──────────────────────────────────────────────────

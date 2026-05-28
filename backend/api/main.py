@@ -350,6 +350,15 @@ async def bonds():
     return {"data": {}, "news": []}
 
 
+@app.get("/rates")
+async def rates():
+    """미국+한국 금리 통합 데이터 (DB-Only — 스케줄러 30분 주기)"""
+    cached = await _run(db_get_stale, "rates")
+    if cached:
+        return cached
+    return {"us": {}, "kr": {}, "updated_at": None}
+
+
 # ─────────────────────────────────────────────
 # 한국어 헤드라인 (Gemini 없음, 5분 RSS 캐시)
 # ─────────────────────────────────────────────
@@ -866,4 +875,22 @@ async def mylab_content(filename: str):
     result = await _run(get_analysis_content, filename)
     if result is None:
         raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다")
+    return result
+
+
+@app.get("/mylab/snapshots")
+async def mylab_snapshots():
+    """stock78/snapshots/ 폴더의 포트폴리오 스냅샷 목록"""
+    from backend.services.mylab import list_snapshots
+    files = await _run(list_snapshots)
+    return {"files": files}
+
+
+@app.get("/mylab/snapshots/{filename}")
+async def mylab_snapshot_content(filename: str):
+    """특정 스냅샷 파일 내용 반환"""
+    from backend.services.mylab import get_snapshot_content
+    result = await _run(get_snapshot_content, filename)
+    if result is None:
+        raise HTTPException(status_code=404, detail="스냅샷을 찾을 수 없습니다")
     return result

@@ -25,7 +25,7 @@ const ForeignFlowSection = dynamic(() => import("@/components/ForeignFlowSection
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 type Tab = "etfstocks" | "markets" | "foreign" | "mylab";
-type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds";
+type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 function fmtTime(d: Date) {
   return d.toLocaleString("ko-KR", {
@@ -79,6 +79,10 @@ export default function Home() {
     if (returns.length === 0) return 8.5;
     return returns.reduce((s, v) => s + v, 0) / returns.length;
   }, [etfSignalsForHero]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, []);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";

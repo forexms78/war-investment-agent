@@ -16,8 +16,9 @@ const CryptoSection     = dynamic(() => import("@/components/CryptoSection"));
 const RealEstateSection = dynamic(() => import("@/components/RealEstateSection"));
 const CommoditySection  = dynamic(() => import("@/components/CommoditySection"));
 const BondsSection      = dynamic(() => import("@/components/BondsSection"));
+const RatesSection      = dynamic(() => import("@/components/RatesSection"));
 
-type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds";
+type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 interface MarketsProps {
   // 서브탭 제어 (외부에서 주입)
@@ -60,6 +61,7 @@ export default function MarketsSection(props: MarketsProps) {
     { id: "realestate",  label: t("tab.realestate") },
     { id: "commodities", label: t("tab.commodities") },
     { id: "bonds",       label: t("tab.bonds") },
+    { id: "rates",       label: "금리" },
   ];
   const activeTab = props.activeSubTab;
 
@@ -173,6 +175,13 @@ export default function MarketsSection(props: MarketsProps) {
               usd_krw={props.usd_krw}
             />
           ) : null}
+        </div>
+      )}
+
+      {/* 금리 */}
+      {activeTab === "rates" && (
+        <div className="fade-in">
+          <RatesSection />
         </div>
       )}
 

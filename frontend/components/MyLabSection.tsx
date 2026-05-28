@@ -38,6 +38,35 @@ interface PortfolioData {
 }
 
 type SectionTab = "all" | "kr_stocks" | "kr_etf" | "us_stocks" | "us_etf";
+type MainView = "portfolio" | "history";
+
+interface SnapshotFile {
+  name: string;
+  path: string;
+  title: string;
+  sha: string;
+  size: number;
+}
+
+interface SnapshotRow {
+  name: string;
+  ticker: string;
+  qty: string;
+  value: string;
+  pnl: string;
+  pnl_pct: string;
+}
+
+interface SnapshotSection {
+  title: string;
+  rows: SnapshotRow[];
+}
+
+interface ParsedSnapshot {
+  date: string;
+  sections: SnapshotSection[];
+  changes: string[];
+}
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────
 function fmtKrw(v: number): string {
@@ -248,6 +277,200 @@ function AllocationBar({ sections, total }: { sections: Section[]; total: number
 }
 
 
+// ─── 스냅샷 파서 ─────────────────────────────────────────────────────────
+function parseSnapshotMd(content: string): ParsedSnapshot {
+  const lines = content.split("\n");
+  let date = "";
+  const sections: SnapshotSection[] = [];
+  const changes: string[] = [];
+  let currentSection: SnapshotSection | null = null;
+  let inChanges = false;
+  let inTable = false;
+  let headerSkipped = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    const dateMatch = trimmed.match(/스냅샷.*(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch) { date = dateMatch[1]; continue; }
+
+    if (trimmed.startsWith("## 변경")) { inChanges = true; inTable = false; continue; }
+
+    if (inChanges) {
+      if (trimmed.startsWith("- ")) changes.push(trimmed.slice(2));
+      continue;
+    }
+
+    if (trimmed.startsWith("## ")) {
+      currentSection = { title: trimmed.slice(3), rows: [] };
+      sections.push(currentSection);
+      inTable = false;
+      headerSkipped = false;
+      continue;
+    }
+
+    if (!currentSection || !trimmed.startsWith("|")) continue;
+    if (/^\|[\s\-:]+\|/.test(trimmed)) { inTable = true; continue; }
+    if (!headerSkipped && trimmed.includes("종목")) { headerSkipped = true; continue; }
+    if (!inTable) { inTable = true; continue; }
+
+    const cells = trimmed.split("|").slice(1, -1).map(c => c.trim());
+    if (cells.length >= 6) {
+      currentSection.rows.push({
+        name: cells[0], ticker: cells[1], qty: cells[2],
+        value: cells[3], pnl: cells[4], pnl_pct: cells[5],
+      });
+    }
+  }
+  return { date, sections, changes };
+}
+
+
+// ─── 스냅샷 히스토리 뷰 ─────────────────────────────────────────────────
+function SnapshotHistoryView() {
+  const [snapshots, setSnapshots] = useState<SnapshotFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ParsedSnapshot | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/mylab/snapshots`)
+      .then(r => r.json())
+      .then(d => setSnapshots(d.files || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function handleSelect(file: SnapshotFile) {
+    setLoadingContent(true);
+    fetch(`${API}/mylab/snapshots/${file.name}`)
+      .then(r => r.json())
+      .then(d => {
+        const parsed = parseSnapshotMd(d.content || "");
+        if (!parsed.date) parsed.date = file.name.replace(".md", "");
+        setSelected(parsed);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingContent(false));
+  }
+
+  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-muted)" }}>...</div>;
+
+  if (!snapshots.length) return (
+    <div style={{ padding: "60px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+      기록된 스냅샷이 없습니다
+    </div>
+  );
+
+  return (
+    <div>
+      {/* 날짜 선택 */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
+        {snapshots.map(f => {
+          const d = f.name.replace(".md", "");
+          const isActive = selected?.date === d;
+          return (
+            <button
+              key={f.name}
+              onClick={() => handleSelect(f)}
+              style={{
+                padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: isActive ? 700 : 400,
+                background: isActive ? "var(--accent-dim)" : "var(--card)",
+                border: isActive ? "1px solid var(--accent-glow)" : "1px solid var(--border)",
+                color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.12s",
+              }}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+
+      {loadingContent && <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-muted)" }}>...</div>}
+
+      {/* 스냅샷 내용 */}
+      {selected && !loadingContent && (
+        <div className="fade-in">
+          {/* 변경 사항 */}
+          {selected.changes.length > 0 && (
+            <div style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 12, padding: 16, marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "var(--text-primary)" }}>
+                변경 사항
+              </div>
+              {selected.changes.map((c, i) => (
+                <div key={i} style={{
+                  fontSize: 12, color: "var(--text-secondary)", padding: "3px 0",
+                  borderLeft: "2px solid var(--accent-glow)", paddingLeft: 10, marginBottom: 4,
+                }}>
+                  {c}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 각 섹션 테이블 */}
+          {selected.sections.map((sec, si) => (
+            <div key={si} style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: 12, overflow: "hidden", marginBottom: 16,
+            }}>
+              <div style={{
+                padding: "14px 16px", borderBottom: "1px solid var(--border)",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{sec.title}</span>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{sec.rows.length}종목</span>
+              </div>
+              {/* 헤더 */}
+              <div style={{
+                display: "grid", gridTemplateColumns: "1.8fr 0.7fr 1.2fr 1.2fr 0.8fr",
+                padding: "8px 16px", borderBottom: "1px solid var(--border)",
+                fontSize: 11, color: "var(--text-muted)", fontWeight: 600,
+              }}>
+                <div>종목</div>
+                <div style={{ textAlign: "right" }}>수량</div>
+                <div style={{ textAlign: "right" }}>평가금</div>
+                <div style={{ textAlign: "right" }}>손익</div>
+                <div style={{ textAlign: "right" }}>수익률</div>
+              </div>
+              {sec.rows.map((r, ri) => {
+                const pnlVal = parseFloat(r.pnl.replace(/[^-\d.]/g, "") || "0");
+                const color = pnlVal > 0 ? "var(--green)" : pnlVal < 0 ? "var(--red)" : "var(--text-muted)";
+                return (
+                  <div key={ri} style={{
+                    display: "grid", gridTemplateColumns: "1.8fr 0.7fr 1.2fr 1.2fr 0.8fr",
+                    alignItems: "center", padding: "12px 16px",
+                    borderBottom: ri < sec.rows.length - 1 ? "1px solid var(--border)" : "none",
+                    fontSize: 13,
+                  }}>
+                    <div>
+                      <span style={{ fontWeight: 700 }}>{r.name}</span>
+                      <span style={{ marginLeft: 6, fontSize: 11, color: "var(--accent)", fontFamily: "monospace" }}>{r.ticker}</span>
+                    </div>
+                    <div style={{ textAlign: "right", color: "var(--text-secondary)" }}>{r.qty}</div>
+                    <div style={{ textAlign: "right", fontWeight: 600 }}>{r.value}</div>
+                    <div style={{ textAlign: "right", fontWeight: 600, color }}>{r.pnl}</div>
+                    <div style={{
+                      textAlign: "right", fontWeight: 700, color,
+                      background: `${color}12`, borderRadius: 4, padding: "2px 6px",
+                      display: "inline-block", marginLeft: "auto",
+                    }}>{r.pnl_pct}</div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────
 export default function MyLabSection() {
   const { t } = useT();
@@ -256,6 +479,7 @@ export default function MyLabSection() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [activeTab, setActiveTab] = useState<SectionTab>("all");
+  const [mainView, setMainView] = useState<MainView>("portfolio");
 
   useEffect(() => {
     if (localStorage.getItem(AUTH_KEY) === "1") setUnlocked(true);
@@ -302,56 +526,82 @@ export default function MyLabSection() {
     ? sections
     : sections.filter(s => s.key === activeTab);
 
+  const krCount = sections.filter(s => s.key.startsWith("kr_")).reduce((a, s) => a + s.holdings.length, 0);
+  const usCount = summary.holdings_count - krCount;
+
   return (
     <div className="fade-in">
-      {/* 헤더 */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20 }}>
+      {/* 헤더 + 뷰 전환 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>My Portfolio</h2>
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0" }}>
             실시간 / {summary.holdings_count}종목 / USD {portfolio.usd_krw.toLocaleString("ko-KR")}원
           </p>
         </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {([["portfolio", "현재"], ["history", "히스토리"]] as [MainView, string][]).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setMainView(id)}
+              style={{
+                padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: mainView === id ? 700 : 400,
+                background: mainView === id ? "var(--accent-dim)" : "transparent",
+                border: mainView === id ? "1px solid var(--accent-glow)" : "1px solid var(--border)",
+                color: mainView === id ? "var(--accent)" : "var(--text-secondary)",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* KPI */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-        <KpiCard label="총 평가금" value={`${fmtKrw(summary.total_value)}원`} />
-        <KpiCard
-          label="총 손익"
-          value={`${pnlSign}${fmtKrw(summary.total_pnl)}원`}
-          sub={`${pnlSign}${summary.total_pnl_pct.toFixed(1)}%`}
-          color={pnlColor_}
-        />
-        <KpiCard label="종목 수" value={`${summary.holdings_count}`} sub="국내 3 / 해외 18" />
-      </div>
+      {mainView === "history" ? (
+        <SnapshotHistoryView />
+      ) : (
+        <>
+          {/* KPI */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+            <KpiCard label="총 평가금" value={`${fmtKrw(summary.total_value)}원`} />
+            <KpiCard
+              label="총 손익"
+              value={`${pnlSign}${fmtKrw(summary.total_pnl)}원`}
+              sub={`${pnlSign}${summary.total_pnl_pct.toFixed(1)}%`}
+              color={pnlColor_}
+            />
+            <KpiCard label="종목 수" value={`${summary.holdings_count}`} sub={`국내 ${krCount} / 해외 ${usCount}`} />
+          </div>
 
-      {/* 배분 바 */}
-      <AllocationBar sections={sections} total={summary.total_value} />
+          {/* 배분 바 */}
+          <AllocationBar sections={sections} total={summary.total_value} />
 
-      {/* 탭 */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto" }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              background: activeTab === tab.id ? "var(--accent-dim)" : "transparent",
-              border: activeTab === tab.id ? "1px solid var(--accent-glow)" : "1px solid transparent",
-              borderRadius: 8, padding: "6px 14px",
-              color: activeTab === tab.id ? "var(--accent)" : "var(--text-secondary)",
-              cursor: "pointer", fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400,
-              whiteSpace: "nowrap",
-            }}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+          {/* 탭 */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto" }}>
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  background: activeTab === tab.id ? "var(--accent-dim)" : "transparent",
+                  border: activeTab === tab.id ? "1px solid var(--accent-glow)" : "1px solid transparent",
+                  borderRadius: 8, padding: "6px 14px",
+                  color: activeTab === tab.id ? "var(--accent)" : "var(--text-secondary)",
+                  cursor: "pointer", fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400,
+                  whiteSpace: "nowrap",
+                }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      {/* 종목 테이블 */}
-      {visibleSections.map(s => (
-        <SectionTable key={s.key} section={s} />
-      ))}
+          {/* 종목 테이블 */}
+          {visibleSections.map(s => (
+            <SectionTable key={s.key} section={s} />
+          ))}
+        </>
+      )}
     </div>
   );
 }

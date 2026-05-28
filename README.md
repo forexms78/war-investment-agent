@@ -21,6 +21,8 @@ AI가 오늘의 핵심 뉴스를 골라주고, 그에 따른 자산 변화를 �
 
 | 버전 | 날짜 | 내용 |
 |------|------|------|
+| v3.10 | 2026-05-28 | **금리 탭 신규 + ETF/주식 대량 추가 + 다크모드 수정.** 마켓 섹션에 "금리" 탭 추가 — 미국(Fed EFFR, 3M/5Y/10Y/30Y Treasury) + 한국(BOK 기준금리, 국고채 1Y/3Y/5Y/10Y, CD 91일, 회사채 AA-) 통합 금리 대시보드. `GET /rates` 엔드포인트 신규(DB-Only, 30분 자동 갱신). `korea_rates.py`에 `get_korea_rates_detail()` 추가(국고채 1Y/5Y, 회사채 AA-, 전일 대비 변동, 10Y-3Y 스프레드). ETF/주식 종목 대량 추가: 미장 21주식(TSM, ASML, PLTR, CRWD 등) + 9ETF(VIG, JEPI, JEPQ 등) + 국장 15주식(삼양식품, HD현대일렉 등) + 8ETF(KODEX 미국반도체MV, RISE 원자력 등). 다크모드 기본 설정 버그 수정(layout.tsx `data-theme="dark"` + 마운트 시 동기화) |
+| v3.9 | 2026-05-28 | **마켓 UI 리디자인 + My Lab 스냅샷 히스토리 + 외국인 매매 레이아웃 개편.** HotStocksBar 가로 스크롤 카드 → 세로 리스트 배치(토스증권 스타일, 순위 배지+종목명+가격+등락률). My Lab 스냅샷 히스토리 뷰어 신규 — `GET /mylab/snapshots`·`GET /mylab/snapshots/{filename}` 2개 API 추가, `stock78/snapshots/` 날짜별 MD 파일 파싱·렌더링, 변경사항(추매/매도/신규) 섹션 표시. ForeignFlowSection 레이아웃 개편 — 시장전체 순매수를 왼쪽 사이드 카드로 분리, 오른쪽에 순매수/순매도 TOP 2열 배치(280px + 1fr 그리드). portfolio.md 포맷 수정(평가금 6열 → 평균매입가 4열, mylab.py 파서 정합) |
 | v3.8 | 2026-05-27 | **ETF 대규모 확장 — 한국 20종 + 미국 11종 추가** (총 ETF 48개). 한국: KODEX 200/레버리지/반도체/AI전력, TIGER S&P500/나스닥100/반도체/2차전지/필라델피아반도체, ACE 나스닥100, PLUS K방산, KOSEF 국고채10년, RISE S&P500 등. 미국: IVV/VUG/VGT/VEA/EEM/SMH/XLF/XLE/TLT/BND/IBIT. 프론트 .KS 접미사 자동 국장 분류 |
 | v3.7 | 2026-05-27 | **외국인 매매 UI v2 디자인 + 기본 다크모드 + ETF 전체종목 외부 링크** -- ForeignFlowSection 전면 리디자인(인라인 스타일 -> CSS 클래스, 컴팩트 리스트형 카드, 데스크탑 2열/모바일 1열), 기본 테마 dark로 전환, ETF 홀딩스 모달에 etf.com 전체 편입종목 외부 링크 추가(Yahoo API top10 제한 보완) |
 | v3.6.1 | 2026-05-27 | **ETF 편입종목 조회 안정화** — Yahoo REST quoteSummary(crumb 인증) 1차 시도 + yfinance 2차 폴백 이중 경로. 크럼 만료 시 자동 재발급. 캐시 키 v4→v5 변경으로 기존 빈 캐시 무효화 |

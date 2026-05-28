@@ -245,6 +245,46 @@ async def refresh_korea_rates():
         logger.error(f"❌ [scheduler] korea_rates 갱신 실패: {e}")
 
 
+async def refresh_rates():
+    """미국+한국 금리 통합 데이터 갱신 (30분 주기)"""
+    from backend.services.korea_rates import get_korea_rates_detail
+    from backend.services.fed_rate import get_fed_rate
+    from backend.services.financial import get_multiple_stocks_parallel
+    from backend.services.db_cache import db_set
+    try:
+        kr_task = _run_sync(get_korea_rates_detail)
+        fed_task = _run_sync(get_fed_rate)
+        us_task = get_multiple_stocks_parallel(["^TNX", "^FVX", "^TYX", "^IRX"])
+        kr_data, fed_rate, us_prices = await asyncio.gather(kr_task, fed_task, us_task)
+
+        tnx = us_prices.get("^TNX", {})
+        fvx = us_prices.get("^FVX", {})
+        tyx = us_prices.get("^TYX", {})
+        irx = us_prices.get("^IRX", {})
+
+        result = {
+            "us": {
+                "fed_rate": fed_rate,
+                "yield_3m": irx.get("current_price"),
+                "yield_3m_change": irx.get("change_1d_pct"),
+                "yield_5y": fvx.get("current_price"),
+                "yield_5y_change": fvx.get("change_1d_pct"),
+                "yield_10y": tnx.get("current_price"),
+                "yield_10y_change": tnx.get("change_1d_pct"),
+                "yield_30y": tyx.get("current_price"),
+                "yield_30y_change": tyx.get("change_1d_pct"),
+                "spread_10y_3m": round((tnx.get("current_price") or 0) - (irx.get("current_price") or 0), 3),
+                "curve_inverted": (tnx.get("current_price") or 0) < (irx.get("current_price") or 0),
+            },
+            "kr": kr_data,
+            "updated_at": kr_data.get("updated_at", ""),
+        }
+        await _run_sync(db_set, "rates", result)
+        logger.info("✅ [scheduler] rates 갱신 완료")
+    except Exception as e:
+        logger.error(f"❌ [scheduler] rates 갱신 실패: {e}")
+
+
 async def refresh_realestate():
     """부동산 뉴스 갱신 (1시간 주기, Gemini 없음)"""
     from backend.services.news import fetch_realestate_news
@@ -566,6 +606,7 @@ async def warm_all_caches():
         refresh_commodities(),
         refresh_bonds(),
         refresh_korea_rates(),
+        refresh_rates(),
         refresh_realestate(),
         refresh_money_flow(),
         return_exceptions=True,
@@ -616,6 +657,7 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(refresh_bonds,         "interval", minutes=30, id="bonds",         max_instances=1)
     scheduler.add_job(refresh_money_flow,    "interval", minutes=30, id="money_flow",    max_instances=1)
     scheduler.add_job(refresh_korea_rates,   "interval", hours=1,    id="korea_rates",   max_instances=1)
+    scheduler.add_job(refresh_rates,         "interval", minutes=30, id="rates",         max_instances=1)
     scheduler.add_job(refresh_realestate,    "interval", hours=1,    id="realestate",    max_instances=1)
     # ── Gemini 포함 (긴 주기, 4초 간격 자동 적용) ───────────
     scheduler.add_job(refresh_investor_details,  "interval", hours=1,  id="investor_details",  max_instances=1)

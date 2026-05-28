@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" data-theme="light" suppressHydrationWarning>
+    <html lang="ko" data-theme="dark" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://whalyx.onrender.com" />
         <link rel="dns-prefetch" href="https://whalyx.onrender.com" />
