@@ -249,9 +249,9 @@ export default function ETFStockSection({
               <span>{lang === "ko" ? "가격" : "Price"}</span>
               <span>1Y</span>
               <span>30D</span>
-              <span>RSI</span>
-              <span>52W</span>
-              <span>MA200</span>
+              <span className="wx-header-tip" data-tip={lang === "ko" ? "상대강도지수(0~100). 70 이상이면 과매수(비쌈), 30 이하면 과매도(쌈). 매수/매도 타이밍 참고 지표" : "Relative Strength Index (0-100). Above 70 = overbought, below 30 = oversold"}>RSI</span>
+              <span className="wx-header-tip" data-tip={lang === "ko" ? "52주(1년) 최저가 대비 현재 위치. 0%=1년 최저, 100%=1년 최고. 저점 매수 기회 판단에 활용" : "Current price position within 52-week range. 0%=yearly low, 100%=yearly high"}>52W</span>
+              <span className="wx-header-tip" data-tip={lang === "ko" ? "200일 이동평균선 대비 위치. 위(상회)면 장기 상승 추세, 아래(하회)면 장기 하락 추세. 추세 방향 판단의 기본 지표" : "Position vs 200-day moving average. Above = long-term uptrend, Below = downtrend"}>MA200</span>
               <span></span>
             </div>
             {items.map((item, idx) => (

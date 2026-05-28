@@ -260,12 +260,7 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock, usdKrw }
             />
           </div>
         ) : (
-          <div style={{
-            padding: "28px", textAlign: "center",
-            color: "var(--fg-subtle)", fontSize: 12,
-          }}>
-            {lang === "ko" ? "편입 종목 데이터 없음" : "No holdings data available"}
-          </div>
+          <NoHoldingsBlock ticker={etf.ticker} lang={lang} />
         )}
 
         {/* Footer */}
@@ -278,6 +273,65 @@ export default function ETFHoldingsModal({ etf, onClose, onSelectStock, usdKrw }
     </div>
   );
 }
+
+function getHoldingsUrl(ticker: string): { url: string; label: string } {
+  const isKr = ticker.endsWith(".KS") || ticker.endsWith(".KQ");
+  const code = ticker.replace(".KS", "").replace(".KQ", "");
+
+  if (isKr) {
+    const brand = ticker.toUpperCase();
+    if (brand.includes("KODEX") || code.match(/^(069500|122630|233740|379800|390390|091160|483250|487230|459580|498410|148070|396500|453810|483280)/))
+      return { url: `https://www.samsungfund.com/etf/product/view.do`, label: "KODEX(삼성) 공식 사이트" };
+    if (code.match(/^(360750|133690|381180|381170|305540|292150|458730|441680|486290|493810|472150|371460|491010)/))
+      return { url: `https://www.tigeretf.com/ko/product/search/detail/index.do`, label: "TIGER(미래에셋) 공식 사이트" };
+    if (code.match(/^(367380|465580)/))
+      return { url: `https://www.aceetf.co.kr/fund`, label: "ACE(한국투자) 공식 사이트" };
+    return { url: `https://finance.naver.com/item/main.naver?code=${code}`, label: "네이버 금융에서 확인" };
+  }
+
+  return { url: `https://www.etf.com/${ticker}`, label: `etf.com/${ticker}` };
+}
+
+function NoHoldingsBlock({ ticker, lang }: { ticker: string; lang: string }) {
+  const isKr = ticker.endsWith(".KS") || ticker.endsWith(".KQ");
+  const link = getHoldingsUrl(ticker);
+
+  return (
+    <div style={{ padding: "24px 28px" }}>
+      <div style={{
+        background: "var(--bg-2)", border: "1px solid var(--border)",
+        borderRadius: 10, padding: "20px", textAlign: "center",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-muted)", marginBottom: 8 }}>
+          {lang === "ko" ? "편입 종목 데이터를 가져올 수 없습니다" : "Holdings data unavailable"}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--fg-subtle)", lineHeight: 1.6, marginBottom: 14 }}>
+          {isKr
+            ? (lang === "ko"
+              ? "한국 ETF는 Yahoo Finance API에서 편입종목을 제공하지 않습니다. 운용사 공식 사이트에서 확인할 수 있습니다."
+              : "Korean ETFs do not provide holdings data via Yahoo Finance API. Check the fund provider's website.")
+            : (lang === "ko"
+              ? "일부 ETF는 데이터 제공사 제한으로 편입종목을 가져올 수 없습니다. 아래 링크에서 확인할 수 있습니다."
+              : "Some ETFs have limited data availability. Check the link below for full holdings.")}
+        </div>
+        <a
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-block", padding: "8px 20px", borderRadius: 8,
+            background: "var(--accent-dim)", color: "var(--accent)",
+            border: "1px solid var(--accent-glow)", fontSize: 12,
+            fontWeight: 600, textDecoration: "none", transition: "all 0.15s",
+          }}
+        >
+          {link.label} →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 
 function HoldingsDonut({ holdings, lang, onSelectStock, etfTicker }: {
   holdings: ETFHoldingItem[];
@@ -400,16 +454,21 @@ function HoldingsDonut({ holdings, lang, onSelectStock, etfTicker }: {
                   );
                 })}
               </div>
-              <a
-                className="wx-holdings-ext"
-                href={`https://www.etf.com/${etfTicker}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {lang === "ko"
-                  ? `etf.com에서 ${etfTicker} 전체 편입종목 보기 →`
-                  : `View all ${etfTicker} holdings on etf.com →`}
-              </a>
+              {(() => {
+                const link = getHoldingsUrl(etfTicker);
+                return (
+                  <a
+                    className="wx-holdings-ext"
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {lang === "ko"
+                      ? `${link.label}에서 전체 편입종목 보기 →`
+                      : `View all holdings on ${link.label} →`}
+                  </a>
+                );
+              })()}
             </div>
           </div>
         </div>

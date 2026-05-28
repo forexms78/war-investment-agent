@@ -455,6 +455,38 @@ button { font-family: inherit; cursor: pointer; }
 .wx-list-header > span:nth-child(n+3) { text-align: right; }
 .wx-list-header > span:last-child { text-align: center; }
 
+.wx-header-tip {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--fg-subtle);
+}
+.wx-header-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg-muted);
+  line-height: 1.5;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.wx-header-tip:hover::after {
+  opacity: 1;
+}
+
 .wx-etf-row {
   display: grid;
   grid-template-columns: 30px minmax(180px, 1.5fr) 90px 110px 70px 70px 60px 60px 60px 20px;
