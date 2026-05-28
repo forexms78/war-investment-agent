@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useT } from "@/contexts/LanguageContext";
 
 const API = process.env.NEXT_PUBLIC_API_URL;
@@ -38,7 +39,25 @@ interface PortfolioData {
 }
 
 type SectionTab = "all" | "kr_stocks" | "kr_etf" | "us_stocks" | "us_etf";
-type MainView = "portfolio" | "history";
+type MainView = "portfolio" | "rebalance" | "history";
+
+interface RebalanceAction {
+  ticker: string;
+  name: string;
+  action: "sell" | "trim" | "buy" | "hold";
+  weight_from: number;
+  weight_to: number;
+  reason: string;
+}
+interface RebalanceData {
+  exists: boolean;
+  date?: string;
+  title?: string;
+  filename?: string;
+  current_allocation?: Record<string, number>;
+  target_allocation?: Record<string, number>;
+  actions?: RebalanceAction[];
+}
 
 interface SnapshotFile {
   name: string;
@@ -471,6 +490,126 @@ function SnapshotHistoryView() {
 }
 
 
+// ─── 리밸런싱: 테마 비중 바 ─────────────────────────────────────────────
+const THEME_COLORS: Record<string, string> = {
+  "테크": "#10b981", "우주": "#f59e0b", "금": "#eab308", "방어": "#3b82f6", "기타": "#6b7280",
+};
+
+function ThemeAllocationBar({ current, target }: { current: Record<string, number>; target: Record<string, number> }) {
+  const themes = Array.from(new Set([...Object.keys(current), ...Object.keys(target)]));
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "var(--text-primary)" }}>테마 비중 변화 (적용 전 → 후)</div>
+      {themes.map(th => {
+        const from = current[th] ?? 0, to = target[th] ?? 0;
+        const arrow = to > from ? "↑" : to < from ? "↓" : "=";
+        const col = THEME_COLORS[th] || "#6b7280";
+        return (
+          <div key={th} style={{ display: "grid", gridTemplateColumns: "60px 1fr 110px", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12 }}>
+            <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{th}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ height: 8, width: `${from}%`, background: `${col}66`, borderRadius: 4 }} />
+              <span style={{ color: "var(--text-muted)" }}>→</span>
+              <div style={{ height: 8, width: `${to}%`, background: col, borderRadius: 4 }} />
+            </div>
+            <span style={{ textAlign: "right", color: "var(--text-secondary)" }}>{from}% → {to}% {arrow}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+// ─── 리밸런싱: 종목 액션 오버레이 ───────────────────────────────────────
+const ACTION_LABEL: Record<string, string> = { sell: "전량매도", trim: "일부매도", buy: "신규매수", hold: "유지" };
+
+function ActionList({ actions, portfolio }: { actions: RebalanceAction[]; portfolio: PortfolioData }) {
+  const held = portfolio.sections.flatMap(s => s.holdings);
+  const sellTrim = actions.filter(a => a.action === "sell" || a.action === "trim");
+  const buys = actions.filter(a => a.action === "buy");
+
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 16 }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>종목별 액션</div>
+      {held.map((h, i) => {
+        const act = sellTrim.find(a => a.ticker === h.ticker);
+        const hatch = act
+          ? { backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 6px, color-mix(in srgb, var(--red) 18%, transparent) 6px, color-mix(in srgb, var(--red) 18%, transparent) 7px)" }
+          : {};
+        return (
+          <div key={`${h.ticker}-${i}`} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.7fr 1.2fr 1.4fr", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--border)", fontSize: 13, ...hatch }}>
+            <div><span style={{ fontWeight: 700 }}>{h.name}</span> <span style={{ fontSize: 11, color: "var(--accent)", fontFamily: "monospace" }}>{h.ticker}</span></div>
+            <div style={{ textAlign: "right", color: "var(--text-secondary)" }}>{h.qty % 1 === 0 ? h.qty : h.qty.toFixed(2)}</div>
+            <div style={{ textAlign: "right", fontWeight: 600 }}>{fmtFull(h.value)}</div>
+            <div style={{ textAlign: "right", fontWeight: 700, color: act ? "var(--red)" : "var(--text-muted)" }}>
+              {act ? `${ACTION_LABEL[act.action]} ${act.weight_from}%→${act.weight_to}%` : "유지"}
+            </div>
+          </div>
+        );
+      })}
+      {buys.map((a, i) => (
+        <div key={`buy-${i}`} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.7fr 1.2fr 1.4fr", alignItems: "center", padding: "12px 16px", fontSize: 13, border: "1px solid var(--green)", borderRadius: 8, margin: "6px 8px", background: "color-mix(in srgb, var(--green) 7%, transparent)" }}>
+          <div><span style={{ fontWeight: 700 }}>{a.name}</span> <span style={{ fontSize: 11, color: "var(--green)", fontFamily: "monospace" }}>{a.ticker}</span> <span style={{ fontSize: 10, color: "var(--green)", fontWeight: 700, marginLeft: 4 }}>신규</span></div>
+          <div />
+          <div style={{ textAlign: "right", color: "var(--text-muted)", fontSize: 11 }}>목표 {a.weight_to}%</div>
+          <div style={{ textAlign: "right", fontWeight: 700, color: "var(--green)" }}>신규매수</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// ─── 리밸런싱: 보유종목 도넛 ─────────────────────────────────────────────
+const DONUT_COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#8b5cf6", "#eab308", "#ef4444", "#06b6d4", "#ec4899", "#6b7280"];
+
+function HoldingDonut({ portfolio }: { portfolio: PortfolioData }) {
+  const held = [...portfolio.sections.flatMap(s => s.holdings)].sort((a, b) => b.value - a.value);
+  const top = held.slice(0, 8).map(h => ({ name: h.name, value: h.value }));
+  const restVal = held.slice(8).reduce((s, h) => s + h.value, 0);
+  const data = restVal > 0 ? [...top, { name: "기타", value: restVal }] : top;
+  return (
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: "var(--text-primary)" }}>보유종목 비중</div>
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+          <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2}>
+            {data.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+          </Pie>
+          <Tooltip formatter={(v) => `${fmtKrw(Number(v))}원`} />
+        </PieChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+
+// ─── 리밸런싱: 적용 뷰 ───────────────────────────────────────────────────
+function RebalanceView({ portfolio }: { portfolio: PortfolioData }) {
+  const [reb, setReb] = useState<RebalanceData | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`${API}/mylab/rebalance`).then(r => r.json()).then(setReb).catch(() => setReb({ exists: false })).finally(() => setLoading(false));
+  }, []);
+  if (loading) return <div style={{ padding: "40px 0", textAlign: "center", color: "var(--text-muted)" }}>...</div>;
+  if (!reb?.exists) return <div style={{ padding: "60px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>아직 6번모드 분석이 없습니다</div>;
+  return (
+    <div className="fade-in">
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{reb.title}</span>
+        <span style={{ marginLeft: 10, fontSize: 12, color: "var(--text-muted)" }}>{reb.date} 기준</span>
+      </div>
+      {reb.current_allocation && reb.target_allocation && (
+        <ThemeAllocationBar current={reb.current_allocation} target={reb.target_allocation} />
+      )}
+      <ActionList actions={reb.actions || []} portfolio={portfolio} />
+      <HoldingDonut portfolio={portfolio} />
+    </div>
+  );
+}
+
+
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────
 export default function MyLabSection() {
   const { t } = useT();
@@ -540,7 +679,7 @@ export default function MyLabSection() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
-          {([["portfolio", "현재"], ["history", "히스토리"]] as [MainView, string][]).map(([id, label]) => (
+          {([["portfolio", "현재"], ["rebalance", "적용"], ["history", "히스토리"]] as [MainView, string][]).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setMainView(id)}
@@ -560,6 +699,8 @@ export default function MyLabSection() {
 
       {mainView === "history" ? (
         <SnapshotHistoryView />
+      ) : mainView === "rebalance" ? (
+        <RebalanceView portfolio={portfolio} />
       ) : (
         <>
           {/* KPI */}
