@@ -197,6 +197,74 @@ def _fetch_fundamentals(ticker: str) -> dict:
         return {}
 
 
+def _fetch_via_finnhub_quote(ticker: str) -> dict | None:
+    """Finnhub 시세 — Yahoo REST 실패 시 폴백"""
+    try:
+        from backend.services.finnhub_service import get_quote
+        q = get_quote(ticker)
+        if not q or q.get("c", 0) <= 0:
+            return None
+        return {
+            "current_price": round(q["c"], 2),
+            "prev_price":    round(q["pc"], 2),
+            "change_30d_pct": round(q.get("dp", 0), 2),
+            "change_1d_pct":  round(q.get("dp", 0), 2),
+            "volatility":     0,
+            "chart":          [],
+            "name":           ticker,
+            "day_high":       q.get("h"),
+            "day_low":        q.get("l"),
+            "prev_close":     q.get("pc"),
+        }
+    except Exception:
+        return None
+
+
+def _fetch_fundamentals_finnhub(ticker: str) -> dict:
+    """Finnhub 펀더멘털 — yfinance 429 에러 대비 우선 시도"""
+    cache_key = f"fund_fh_{ticker}"
+    cached = db_get(cache_key, FUND_CACHE_TTL)
+    if cached:
+        return cached
+
+    try:
+        from backend.services.finnhub_service import get_metrics, get_profile
+        metrics = get_metrics(ticker)
+        profile = get_profile(ticker)
+        if not metrics and not profile:
+            return {}
+        m = metrics or {}
+        p = profile or {}
+        result = {
+            "sector":            p.get("finnhubIndustry", ""),
+            "industry":          p.get("finnhubIndustry", ""),
+            "market_cap":        (p.get("marketCapitalization") or 0) * 1e6 if p.get("marketCapitalization") else None,
+            "trailing_pe":       m.get("peBasicExclExtraTTM"),
+            "forward_pe":        m.get("peTTM"),
+            "eps":               m.get("epsBasicExclExtraItemsTTM"),
+            "price_to_book":     m.get("pbAnnual"),
+            "beta":              m.get("beta"),
+            "dividend_yield":    m.get("dividendYieldIndicatedAnnual"),
+            "week52_high":       m.get("52WeekHigh"),
+            "week52_low":        m.get("52WeekLow"),
+            "avg_volume":        m.get("10DayAverageTradingVolume"),
+            "revenue":           m.get("revenuePerShareTTM"),
+            "gross_margins":     m.get("grossMarginTTM"),
+            "profit_margins":    m.get("netProfitMarginTTM"),
+            "roe":               m.get("roeTTM"),
+            "revenue_growth":    m.get("revenueGrowthQuarterlyYoy"),
+            "target_mean_price": None,
+            "recommendation":    None,
+            "analyst_count":     None,
+            "description":       "",
+            "name":              p.get("name", ticker),
+        }
+        db_set(cache_key, result)
+        return result
+    except Exception:
+        return {}
+
+
 def get_stock_data(ticker: str, period: str = "30d") -> dict:
     cache_key = f"{ticker}_{period}"
     now = time.time()
@@ -206,14 +274,20 @@ def get_stock_data(ticker: str, period: str = "30d") -> dict:
 
     cfg = _PERIOD_CONFIG.get(period, _PERIOD_CONFIG["30d"])
 
-    # 한국 종목 일봉(30d/3mo)은 KIS 직결 우선, 실패 시 Yahoo REST 폴백
+    # 한국 종목: KIS → Yahoo REST
+    # 미국 종목: Finnhub quote → Yahoo REST (차트는 Yahoo만 가능)
     if _is_kr_ticker(ticker):
         rest_data = _fetch_via_kis_kr(ticker, period) or _fetch_via_rest(ticker, period)
     else:
         rest_data = _fetch_via_rest(ticker, period)
+        if not rest_data:
+            rest_data = _fetch_via_finnhub_quote(ticker)
 
-    # 펀더멘털 (Supabase 캐시 24h)
-    fund = _fetch_fundamentals(ticker)
+    # 펀더멘털: Finnhub → yfinance (미국 종목만 Finnhub 우선)
+    if not _is_kr_ticker(ticker):
+        fund = _fetch_fundamentals_finnhub(ticker) or _fetch_fundamentals(ticker)
+    else:
+        fund = _fetch_fundamentals(ticker)
 
     if rest_data:
         result = {

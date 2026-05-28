@@ -8,6 +8,8 @@ interface USRates {
   fed_rate: number | null;
   yield_3m: number | null;
   yield_3m_change: number | null;
+  yield_2y: number | null;
+  yield_2y_change: number | null;
   yield_5y: number | null;
   yield_5y_change: number | null;
   yield_10y: number | null;
@@ -15,6 +17,7 @@ interface USRates {
   yield_30y: number | null;
   yield_30y_change: number | null;
   spread_10y_3m: number | null;
+  spread_10y_2y: number | null;
   curve_inverted: boolean;
 }
 
@@ -146,7 +149,7 @@ export default function RatesSection() {
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>미국 / 한국 금리</div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-            Fed(NY Fed API) / 한국은행(ECOS API) 공식 데이터 / 30분 자동 갱신
+            FRED(St. Louis Fed) / 한국은행(ECOS API) 공식 데이터 / 30분 자동 갱신
           </div>
         </div>
         {data.updated_at && (
@@ -177,8 +180,9 @@ export default function RatesSection() {
           gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
           gap: 12,
         }}>
-          <RateCard label="Fed 기준금리 (EFFR)" value={fmtRate(us.fed_rate)} sub="NY Fed API" />
+          <RateCard label="Fed 기준금리 (EFFR)" value={fmtRate(us.fed_rate)} sub="FRED" />
           <RateCard label="미국 3개월 국채" value={fmtRate(us.yield_3m)} change={us.yield_3m_change} sub="단기" />
+          <RateCard label="미국 2년 국채" value={fmtRate(us.yield_2y)} change={us.yield_2y_change} sub="단기" />
           <RateCard label="미국 5년 국채" value={fmtRate(us.yield_5y)} change={us.yield_5y_change} sub="중기" />
           <RateCard label="미국 10년 국채" value={fmtRate(us.yield_10y)} change={us.yield_10y_change} sub="장기 기준" />
           <RateCard label="미국 30년 국채" value={fmtRate(us.yield_30y)} change={us.yield_30y_change} sub="초장기" />
