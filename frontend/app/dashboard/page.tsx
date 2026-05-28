@@ -25,7 +25,7 @@ const ForeignFlowSection = dynamic(() => import("@/components/ForeignFlowSection
 const API = process.env.NEXT_PUBLIC_API_URL;
 
 type Tab = "etfstocks" | "markets" | "foreign" | "mylab";
-type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
+type MarketTab = "stocks" | "investors" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 function fmtTime(d: Date) {
   return d.toLocaleString("ko-KR", {

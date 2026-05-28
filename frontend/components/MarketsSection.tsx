@@ -18,7 +18,7 @@ const CommoditySection  = dynamic(() => import("@/components/CommoditySection"))
 const BondsSection      = dynamic(() => import("@/components/BondsSection"));
 const RatesSection      = dynamic(() => import("@/components/RatesSection"));
 
-type MarketTab = "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
+type MarketTab = "stocks" | "investors" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 interface MarketsProps {
   // 서브탭 제어 (외부에서 주입)
@@ -54,9 +54,10 @@ interface MarketsProps {
 }
 
 export default function MarketsSection(props: MarketsProps) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const MARKET_TABS: { id: MarketTab; label: string }[] = [
     { id: "stocks",      label: t("tab.stocks") },
+    { id: "investors",   label: lang === "ko" ? "투자자" : "Investors" },
     { id: "crypto",      label: t("tab.crypto") },
     { id: "realestate",  label: t("tab.realestate") },
     { id: "commodities", label: t("tab.commodities") },
@@ -125,17 +126,22 @@ export default function MarketsSection(props: MarketsProps) {
             </div>
           </div>
 
-          {/* 투자자 카드 그리드 */}
+        </div>
+      )}
+
+      {/* 투자자 */}
+      {activeTab === "investors" && (
+        <div className="fade-in">
           <div style={{ marginBottom: 16, display: "flex", alignItems: "baseline", gap: 8 }}>
             <span style={{ fontSize: 18, fontWeight: 700 }}>{t("markets.investors.title")}</span>
             <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t("markets.investors.subtitle")}</span>
           </div>
           {props.loadingInvestors ? (
-            <div className="grid-investors" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
               {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
             </div>
           ) : (
-            <div className="grid-investors" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
               {props.investors.map(inv => (
                 <InvestorCard key={inv.id} investor={inv} onClick={() => props.onSelectInvestor(inv.id)} />
               ))}
