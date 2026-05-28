@@ -14,6 +14,7 @@ import MarketsSection from "@/components/MarketsSection";
 import ETFStockSection from "@/components/ETFStockSection";
 import HeroSection from "@/components/HeroSection";
 import Tooltip from "@/components/Tooltip";
+import MarketHoursHelp from "@/components/MarketHoursHelp";
 import MyLabSection from "@/components/MyLabSection";
 import { useT } from "@/contexts/LanguageContext";
 
@@ -201,6 +202,7 @@ export default function Home() {
             >
               {theme === "dark" ? t("theme.light") : t("theme.dark")}
             </button>
+            <MarketHoursHelp />
           </div>
 
           <nav className="header-nav" style={{ display: "flex", gap: 4 }}>
