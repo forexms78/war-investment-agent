@@ -1,5 +1,6 @@
 """My Lab — GitHub stock78 repo 분석 파일 연동 서비스"""
 import base64
+import json as _json
 import os
 from typing import Optional
 
@@ -357,3 +358,38 @@ def parse_portfolio() -> dict:
     _portfolio_cache = result
     _portfolio_cache_ts = now
     return result
+
+
+def get_latest_rebalance() -> dict:
+    """analyses/ 폴더에서 최신 *-rebalance.json 1개를 파싱해 반환. 없으면 {'exists': False}."""
+    url = f"https://api.github.com/repos/{REPO}/contents/{ANALYSES_PATH}?ref={BRANCH}"
+    try:
+        r = _requests.get(url, headers=_headers(), timeout=10)
+        if r.status_code == 404:
+            return {"exists": False}
+        r.raise_for_status()
+        items = r.json()
+    except Exception as e:
+        print(f"[mylab] get_latest_rebalance 목록 오류: {e}")
+        return {"exists": False}
+
+    json_files = sorted(
+        [it for it in items if it.get("type") == "file" and it["name"].endswith("-rebalance.json")],
+        key=lambda x: x["name"], reverse=True,
+    )
+    if not json_files:
+        return {"exists": False}
+
+    target = json_files[0]
+    try:
+        cr = _requests.get(target["url"], headers=_headers(), timeout=10)
+        cr.raise_for_status()
+        raw = cr.json().get("content", "")
+        content = base64.b64decode(raw).decode("utf-8")
+        data = _json.loads(content)
+        data["exists"] = True
+        data["filename"] = target["name"]
+        return data
+    except Exception as e:
+        print(f"[mylab] get_latest_rebalance 파싱 오류: {e}")
+        return {"exists": False}

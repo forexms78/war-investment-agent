@@ -880,6 +880,13 @@ async def mylab_content(filename: str):
     return result
 
 
+@app.get("/mylab/rebalance")
+async def mylab_rebalance():
+    """최신 리밸런싱 추천 JSON 반환 (없으면 exists: false)"""
+    from backend.services.mylab import get_latest_rebalance
+    return await _run(get_latest_rebalance)
+
+
 @app.get("/mylab/snapshots")
 async def mylab_snapshots():
     """stock78/snapshots/ 폴더의 포트폴리오 스냅샷 목록"""
