@@ -70,6 +70,8 @@ def debug_env():
         "SUPABASE_URL": sb_url[:40] + "..." if sb_url else "NOT SET",
         "SUPABASE_KEY_prefix": sb_key[:20] + "..." if sb_key else "NOT SET",
         "BOK_API_KEY_set": bool(os.getenv("BOK_API_KEY")),
+        "FINNHUB_API_KEY_set": bool(os.getenv("FINNHUB_API_KEY")),
+        "FRED_API_KEY_set": bool(os.getenv("FRED_API_KEY")),
     }
 
 
