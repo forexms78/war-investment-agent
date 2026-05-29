@@ -252,7 +252,7 @@ async def recommendations():
     cached = await _run(db_get_stale, "stocks_recommendations")
     if cached:
         return cached
-    return {"buy": [], "sell": []}
+    return {"buy": [], "sell": [], "holdings": [], "as_of": ""}
 
 
 @app.get("/stocks/{ticker}")

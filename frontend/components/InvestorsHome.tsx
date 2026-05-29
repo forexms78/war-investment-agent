@@ -87,7 +87,7 @@ function initialsOf(name: string): string {
 
 interface Props {
   investors: InvestorSummary[];
-  recommendations: { buy: RecommendedStock[]; sell: RecommendedStock[] } | null;
+  recommendations: { buy: RecommendedStock[]; sell: RecommendedStock[]; holdings?: RecommendedStock[]; as_of?: string } | null;
   loadingInvestors: boolean;
   onSelectInvestor: (id: string) => void;
   onSelectStock: (ticker: string) => void;
@@ -100,17 +100,29 @@ export default function InvestorsHome({
   const [selected, setSelected] = useState<string>("consensus");
   const buy = recommendations?.buy ?? [];
   const sell = recommendations?.sell ?? [];
+  const holdings = recommendations?.holdings ?? [];
+  const asOf = recommendations?.as_of || "";
   const activeInvestor = investors.find(i => i.id === selected) ?? null;
 
   return (
     <div className="fade-in">
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>
-          {lang === "ko" ? "대형 투자자 포트폴리오" : "Super Investor Portfolios"}
+      <div style={{ marginBottom: 18, display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>
+            {lang === "ko" ? "대형 투자자 포트폴리오" : "Super Investor Portfolios"}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+            {lang === "ko" ? "SEC 13F 분기 공시 기반 · 누가 무엇을 사고 파는가" : "Based on SEC 13F quarterly filings"}
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-          {lang === "ko" ? "SEC 13F 분기 공시 기반 · 누가 무엇을 사고 파는가" : "Based on SEC 13F quarterly filings"}
-        </div>
+        {asOf && (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+            background: "var(--accent-dim)", color: "var(--accent)", border: "1px solid var(--accent-glow)", whiteSpace: "nowrap",
+          }}>
+            {asOf} 13F {lang === "ko" ? "기준" : "filing"}
+          </span>
+        )}
       </div>
 
       <div className="wx-investors-layout">
@@ -143,15 +155,18 @@ export default function InvestorsHome({
         {/* 우측 콘텐츠 */}
         <div style={{ minWidth: 0 }}>
           {selected === "consensus" ? (
-            <div className="wx-consensus-grid">
-              <ConsensusCard
-                title={lang === "ko" ? "지금 사는 종목" : "Buying now"}
-                side="buy" items={buy} onSelectStock={onSelectStock} lang={lang}
-              />
-              <ConsensusCard
-                title={lang === "ko" ? "지금 파는 종목" : "Selling now"}
-                side="sell" items={sell} onSelectStock={onSelectStock} lang={lang}
-              />
+            <div>
+              <HoldingsConsensus items={holdings} onSelectStock={onSelectStock} lang={lang} />
+              <div className="wx-consensus-grid" style={{ marginTop: 16 }}>
+                <ConsensusCard
+                  title={lang === "ko" ? "지금 사는 종목" : "Buying now"}
+                  side="buy" items={buy} onSelectStock={onSelectStock} lang={lang}
+                />
+                <ConsensusCard
+                  title={lang === "ko" ? "지금 파는 종목" : "Selling now"}
+                  side="sell" items={sell} onSelectStock={onSelectStock} lang={lang}
+                />
+              </div>
             </div>
           ) : activeInvestor ? (
             <InvestorPanel
@@ -316,6 +331,58 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
       }}>
         <span style={{ color: "var(--gold)", fontWeight: 700, fontSize: 11, marginRight: 6 }}>LATEST</span>
         {investor.recent_moves}
+      </div>
+    </div>
+  );
+}
+
+function HoldingsConsensus({ items, onSelectStock, lang }: {
+  items: RecommendedStock[];
+  onSelectStock: (ticker: string) => void;
+  lang: string;
+}) {
+  const top = items.slice(0, 12);
+  if (top.length === 0) return null;
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 13, fontWeight: 800 }}>{lang === "ko" ? "최다 보유 종목" : "Most held"}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{lang === "ko" ? "매수·보유·매도 포함" : "buy · hold · sell"}</span>
+      </div>
+      <div>
+        {top.map(it => {
+          const holders = it.holders ?? [];
+          return (
+            <div key={it.ticker} style={{ borderBottom: "1px solid var(--border)", padding: "10px 14px" }}>
+              <div onClick={() => onSelectStock(it.ticker)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <TickerLogo ticker={it.ticker} size={26} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{it.ticker}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", flexShrink: 0 }}>
+                  {it.count ?? holders.length}{lang === "ko" ? "인" : ""}
+                </span>
+              </div>
+              <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {holders.map((h, i) => {
+                  const act = ACTION[h.action ?? "hold"] ?? ACTION.hold;
+                  return (
+                    <span key={i} style={{
+                      display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px",
+                      borderRadius: 7, background: "var(--bg-2)", border: "1px solid var(--border)",
+                    }}>
+                      <FirmLogo firm={h.firm} initial={initialsOf(h.name)} color={h.color} size={14} />
+                      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{h.name.split(" ").slice(-1)[0]}</span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{h.weight}%</span>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: act.color }}>{lang === "ko" ? act.ko : act.en}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

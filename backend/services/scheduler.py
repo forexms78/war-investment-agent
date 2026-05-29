@@ -94,23 +94,29 @@ async def refresh_stocks_hot():
 
 
 async def refresh_recommendations():
-    from backend.services.investors import get_buy_recommendations, get_sell_recommendations
+    from backend.services.investors import (
+        get_buy_recommendations, get_sell_recommendations,
+        get_holdings_consensus, AS_OF_QUARTER, AS_OF_DATE,
+    )
     from backend.services.financial import get_multiple_stocks_parallel
     from backend.services.db_cache import db_set
     try:
         buys = get_buy_recommendations()
         sells = get_sell_recommendations()
-        all_tickers = list(set([r["ticker"] for r in buys] + [r["ticker"] for r in sells]))
+        holds = get_holdings_consensus()
+        all_tickers = list({r["ticker"] for r in buys + sells + holds})
         prices = await get_multiple_stocks_parallel(all_tickers)
-        buy_result = [
-            {**r, **{k: prices.get(r["ticker"], {}).get(k) for k in ["current_price", "change_30d_pct", "change_1d_pct"]}}
-            for r in buys
-        ]
-        sell_result = [
-            {**r, **{k: prices.get(r["ticker"], {}).get(k) for k in ["current_price", "change_30d_pct", "change_1d_pct"]}}
-            for r in sells
-        ]
-        await _run_sync(db_set, "stocks_recommendations", {"buy": buy_result, "sell": sell_result})
+
+        def _px(r):
+            return {**r, **{k: prices.get(r["ticker"], {}).get(k) for k in ["current_price", "change_30d_pct", "change_1d_pct"]}}
+
+        await _run_sync(db_set, "stocks_recommendations", {
+            "buy":      [_px(r) for r in buys],
+            "sell":     [_px(r) for r in sells],
+            "holdings": [_px(r) for r in holds],
+            "as_of":      AS_OF_QUARTER,
+            "as_of_date": AS_OF_DATE,
+        })
         logger.info("✅ [scheduler] stocks_recommendations 갱신 완료")
     except Exception as e:
         logger.error(f"❌ [scheduler] stocks_recommendations 갱신 실패: {e}")

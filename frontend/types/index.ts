@@ -121,6 +121,7 @@ export interface ConsensusHolder {
   color: string;
   weight: number;
   shares: number;
+  action?: "buy" | "sell" | "hold";
 }
 
 export interface RecommendedStock {

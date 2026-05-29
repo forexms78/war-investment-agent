@@ -6,6 +6,11 @@
       shares(주식수)는 13F 총액 × 비중 ÷ 현재가 근사치 (표시용, 정확치 아님).
 """
 
+# 데이터 기준 분기 (13F 공시) — 화면 신뢰도 표시용
+AS_OF_QUARTER = "2026 Q1"
+AS_OF_DATE = "2026-03-31"
+FILED_DATE = "2026-05-15"
+
 INVESTORS = [
     {
         "id": "warren-buffett",
@@ -226,6 +231,7 @@ def _collect_by_action(action: str, names_key: str) -> list[dict]:
                 "color":  inv["color"],
                 "weight": holding["weight"],
                 "shares": holding["shares"],
+                "action": holding["action"],
             })
     recs = list(by_ticker.values())
     for r in recs:
@@ -245,3 +251,30 @@ def get_buy_recommendations() -> list[dict]:
 def get_sell_recommendations() -> list[dict]:
     """투자자들이 매도 중인 종목 — 보유자 명세 포함 (1인부터)."""
     return _collect_by_action("sell", "sellers")
+
+
+def get_holdings_consensus() -> list[dict]:
+    """투자자들의 전체 보유 종목(매수·매도·보유 모두) — 보유자별 비중·주식수·증감 명세.
+    보유자 수 → 비중합 순 정렬. 마이크론처럼 'hold' 상태 종목도 포함된다."""
+    by_ticker: dict[str, dict] = {}
+    for inv in INVESTORS:
+        for holding in inv["portfolio"]:
+            t = holding["ticker"]
+            if t not in by_ticker:
+                by_ticker[t] = {"ticker": t, "name": holding["name"], "holders": []}
+            by_ticker[t]["holders"].append({
+                "name":   inv["name"],
+                "firm":   inv["firm"],
+                "color":  inv["color"],
+                "weight": holding["weight"],
+                "shares": holding["shares"],
+                "action": holding["action"],
+            })
+    recs = list(by_ticker.values())
+    for r in recs:
+        r["count"] = len(r["holders"])
+    return sorted(
+        recs,
+        key=lambda x: (x["count"], sum(h["weight"] for h in x["holders"])),
+        reverse=True,
+    )

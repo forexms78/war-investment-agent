@@ -43,7 +43,7 @@ export default function Home() {
   // 공통 데이터
   const [investors, setInvestors] = useState<InvestorSummary[]>([]);
   const [hotStocks, setHotStocks] = useState<HotStock[]>([]);
-  const [recommendations, setRecommendations] = useState<{ buy: RecommendedStock[]; sell: RecommendedStock[] } | null>(null);
+  const [recommendations, setRecommendations] = useState<{ buy: RecommendedStock[]; sell: RecommendedStock[]; holdings?: RecommendedStock[]; as_of?: string } | null>(null);
   const [moneyFlow, setMoneyFlow] = useState<{ assets: MoneyFlowAsset[]; rate_signal: { level: string; message: string }; fed_rate: number; korea_rates?: KoreaRates } | null>(null);
   const [etfSignals, setEtfSignals] = useState<ETFSignalsData | null>(null);
   const [selectedEtf, setSelectedEtf] = useState<ETFSignalItem | null>(null);
