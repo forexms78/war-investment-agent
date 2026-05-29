@@ -18,15 +18,37 @@ Gemini 호출 원칙:
 """
 import asyncio
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 logger = logging.getLogger(__name__)
 
+_KST = ZoneInfo("Asia/Seoul")
+
 
 async def _run_sync(fn, *args):
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, fn, *args)
+
+
+def _foreign_flow_needs_backfill(cached: dict | None, now: datetime | None = None) -> bool:
+    """부팅/콜드스타트 시 오늘 외국인 매매 데이터 누락 여부 판단.
+
+    Render Free Tier 슬립으로 KST 16:30·17:30 cron을 둘 다 놓친 날을 회수한다.
+    콜드스타트(슬립→핑 깨어남)마다 재평가되므로 정각을 놓쳐도 당일분을 수집한다.
+    조건: 캐시 없음 OR (평일 AND KST 16:30 이후 AND 저장된 current_date가 오늘이 아님).
+    공휴일이면 네이버가 직전 거래일 bizdate를 주므로 한 번 헛돌 뿐 데이터 오염은 없다."""
+    if not cached:
+        return True
+    now = now or datetime.now(_KST)
+    if now.weekday() >= 5:                    # 주말 — 장 없음
+        return False
+    if (now.hour, now.minute) < (16, 30):     # 장 마감 후 수집 시각 전
+        return False
+    return cached.get("current_date") != now.strftime("%Y-%m-%d")
 
 
 async def refresh_investors():
@@ -622,8 +644,8 @@ async def warm_all_caches():
         asyncio.create_task(refresh_etf_signals())
 
     ff_cached = await _run_sync(db_get_stale, "foreign_flow")
-    if not ff_cached:
-        logger.info("🔥 [scheduler] foreign_flow DB 미스 → 즉시 1회 실행")
+    if _foreign_flow_needs_backfill(ff_cached):
+        logger.info("🔥 [scheduler] foreign_flow 미스/당일 누락 → 즉시 1회 실행")
         asyncio.create_task(refresh_foreign_flow())
 
 
