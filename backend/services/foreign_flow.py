@@ -167,12 +167,12 @@ def build_foreign_flow_snapshot() -> dict:
     """
     return {
         "top_buyers": {
-            "kospi":  get_top_foreign_buyers("KOSPI",  limit=20),
-            "kosdaq": get_top_foreign_buyers("KOSDAQ", limit=20),
+            "kospi":  get_top_foreign_buyers("KOSPI",  limit=10),
+            "kosdaq": get_top_foreign_buyers("KOSDAQ", limit=10),
         },
         "top_sellers": {
-            "kospi":  get_top_foreign_sellers("KOSPI",  limit=20),
-            "kosdaq": get_top_foreign_sellers("KOSDAQ", limit=20),
+            "kospi":  get_top_foreign_sellers("KOSPI",  limit=10),
+            "kosdaq": get_top_foreign_sellers("KOSDAQ", limit=10),
         },
         "market_today": {
             "kospi":  get_market_deal_trend_today("KOSPI"),

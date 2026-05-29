@@ -504,6 +504,18 @@ button { font-family: inherit; cursor: pointer; }
   }
 }
 
+/* 투자자 메인 컨센서스 좌우 레이아웃 */
+.wx-consensus-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 860px) {
+  .wx-consensus-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .wx-etf-row {
   display: grid;
   grid-template-columns: 30px minmax(180px, 1.5fr) 90px 110px 70px 70px 60px 60px 60px 20px;

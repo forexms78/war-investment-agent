@@ -3,12 +3,12 @@ import dynamic from "next/dynamic";
 import {
   HotStock, RecommendedStock, CoinData, RealEstateIndicator,
   CommodityData, NewsItem, BondData, KoreaRates,
+  ETFSignalsData, ETFSignalItem,
 } from "@/types";
 import HotStocksBar from "@/components/HotStocksBar";
 import RecommendSection from "@/components/RecommendSection";
-import InvestorCard from "@/components/InvestorCard";
+import ETFStockSection from "@/components/ETFStockSection";
 import SkeletonCard from "@/components/SkeletonCard";
-import { InvestorSummary } from "@/types";
 import { useT } from "@/contexts/LanguageContext";
 
 // 서브 탭 클릭 시점에만 chunk 로드
@@ -18,7 +18,7 @@ const CommoditySection  = dynamic(() => import("@/components/CommoditySection"))
 const BondsSection      = dynamic(() => import("@/components/BondsSection"));
 const RatesSection      = dynamic(() => import("@/components/RatesSection"));
 
-type MarketTab = "stocks" | "investors" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
+type MarketTab = "etf" | "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 interface MarketsProps {
   // 서브탭 제어 (외부에서 주입)
@@ -27,10 +27,9 @@ interface MarketsProps {
   // 주식
   hotStocks: HotStock[];
   recommendations: { buy: RecommendedStock[]; sell: RecommendedStock[] } | null;
-  investors: InvestorSummary[];
-  loadingInvestors: boolean;
+  etfSignals: ETFSignalsData | null;
   onSelectStock: (ticker: string) => void;
-  onSelectInvestor: (id: string) => void;
+  onSelectEtf: (item: ETFSignalItem) => void;
   usd_krw?: number;
   // 코인
   coins: CoinData[];
@@ -54,10 +53,10 @@ interface MarketsProps {
 }
 
 export default function MarketsSection(props: MarketsProps) {
-  const { t, lang } = useT();
+  const { t } = useT();
   const MARKET_TABS: { id: MarketTab; label: string }[] = [
+    { id: "etf",         label: t("tab.etf") },
     { id: "stocks",      label: t("tab.stocks") },
-    { id: "investors",   label: lang === "ko" ? "투자자" : "Investors" },
     { id: "crypto",      label: t("tab.crypto") },
     { id: "realestate",  label: t("tab.realestate") },
     { id: "commodities", label: t("tab.commodities") },
@@ -103,11 +102,31 @@ export default function MarketsSection(props: MarketsProps) {
         ))}
       </div>
 
+      {/* ETF */}
+      {activeTab === "etf" && (
+        <div className="fade-in">
+          <ETFStockSection
+            filter="etf"
+            data={props.etfSignals}
+            onSelect={props.onSelectStock}
+            onSelectEtf={props.onSelectEtf}
+            usdKrw={props.usd_krw}
+          />
+        </div>
+      )}
+
       {/* 주식 */}
       {activeTab === "stocks" && (
         <div className="fade-in">
+          <ETFStockSection
+            filter="stock"
+            data={props.etfSignals}
+            onSelect={props.onSelectStock}
+            onSelectEtf={props.onSelectEtf}
+            usdKrw={props.usd_krw}
+          />
           {/* 좌우 레이아웃: 왼쪽 고래 종목 + 오른쪽 매수/매도 추천 */}
-          <div className="wx-market-stocks-layout">
+          <div className="wx-market-stocks-layout" style={{ marginTop: 32 }}>
             <div className="wx-market-stocks-left">
               <HotStocksBar
                 stocks={props.hotStocks}
@@ -126,27 +145,6 @@ export default function MarketsSection(props: MarketsProps) {
             </div>
           </div>
 
-        </div>
-      )}
-
-      {/* 투자자 */}
-      {activeTab === "investors" && (
-        <div className="fade-in">
-          <div style={{ marginBottom: 16, display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 18, fontWeight: 700 }}>{t("markets.investors.title")}</span>
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{t("markets.investors.subtitle")}</span>
-          </div>
-          {props.loadingInvestors ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-              {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-              {props.investors.map(inv => (
-                <InvestorCard key={inv.id} investor={inv} onClick={() => props.onSelectInvestor(inv.id)} />
-              ))}
-            </div>
-          )}
         </div>
       )}
 

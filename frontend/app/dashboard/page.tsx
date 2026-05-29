@@ -11,7 +11,7 @@ import {
 import MoneyFlowSection from "@/components/MoneyFlowSection";
 import SkeletonCard from "@/components/SkeletonCard";
 import MarketsSection from "@/components/MarketsSection";
-import ETFStockSection from "@/components/ETFStockSection";
+import InvestorsHome from "@/components/InvestorsHome";
 import HeroSection from "@/components/HeroSection";
 import Tooltip from "@/components/Tooltip";
 import MarketStatus from "@/components/MarketStatus";
@@ -25,8 +25,8 @@ const ForeignFlowSection = dynamic(() => import("@/components/ForeignFlowSection
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "etfstocks" | "markets" | "foreign" | "mylab";
-type MarketTab = "stocks" | "investors" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
+type Tab = "investors" | "markets" | "foreign" | "mylab";
+type MarketTab = "etf" | "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 function fmtTime(d: Date) {
   return d.toLocaleString("ko-KR", {
@@ -37,8 +37,8 @@ function fmtTime(d: Date) {
 
 export default function Home() {
   const { t, lang, toggleLang } = useT();
-  const [activeTab, setActiveTab] = useState<Tab>("etfstocks");
-  const [marketSubTab, setMarketSubTab] = useState<MarketTab>("stocks");
+  const [activeTab, setActiveTab] = useState<Tab>("investors");
+  const [marketSubTab, setMarketSubTab] = useState<MarketTab>("etf");
 
   // 공통 데이터
   const [investors, setInvestors] = useState<InvestorSummary[]>([]);
@@ -152,7 +152,7 @@ export default function Home() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "etfstocks", label: t("tab.etfstocks") },
+    { id: "investors", label: t("tab.investors") },
     { id: "markets",   label: t("tab.markets")   },
     { id: "foreign",   label: t("tab.foreign")   },
     { id: "mylab",     label: t("tab.mylab")     },
@@ -330,21 +330,16 @@ export default function Home() {
 
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px" }}>
 
-        {/* ETF·주식 — 메인 랜딩 */}
-        {activeTab === "etfstocks" && (
+        {/* 투자자 — 메인 랜딩 */}
+        {activeTab === "investors" && (
           <div className="fade-in">
-            <ETFStockSection
-              onSelect={setSelectedStock}
-              onSelectEtf={setSelectedEtf}
-              usdKrw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
-              data={etfSignals}
-              fedRate={moneyFlow?.fed_rate}
-              krwUsd={moneyFlow?.korea_rates?.usd_krw ?? undefined}
-              krwUsdChange={moneyFlow?.korea_rates?.usd_krw_change_1d ?? undefined}
-              marketDrivers={marketDrivers}
+            <InvestorsHome
+              investors={investors}
+              recommendations={recommendations}
+              loadingInvestors={loadingInvestors}
+              onSelectInvestor={setSelectedInvestor}
+              onSelectStock={setSelectedStock}
             />
-
-            {/* MoneyFlowSection 비활성 — 데이터는 유지, 다른 탭에서 재사용 예정 */}
           </div>
         )}
 
@@ -356,10 +351,9 @@ export default function Home() {
               onSubTabChange={setMarketSubTab}
               hotStocks={hotStocks}
               recommendations={recommendations}
-              investors={investors}
-              loadingInvestors={loadingInvestors}
+              etfSignals={etfSignals}
               onSelectStock={setSelectedStock}
-              onSelectInvestor={setSelectedInvestor}
+              onSelectEtf={setSelectedEtf}
               usd_krw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
               coins={coins}
               cryptoNews={cryptoNews}

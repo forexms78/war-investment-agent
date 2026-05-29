@@ -6,6 +6,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
   ko: {
     "tab.markets":    "마켓",
     "tab.etfstocks":  "ETF·주식",
+    "tab.investors":  "투자자",
     "tab.foreign":    "외국인 매매",
     "tab.quant":      "Quant",
     "live":           "LIVE",
@@ -66,6 +67,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     "tooltip.asset.30d":  "최근 30일 수익률 기준",
     "tooltip.krwusd":     "원달러 환율 (KRW/USD)\n\n달러 대비 원화 가치입니다.\n수치가 높을수록 원화 약세를 의미합니다.",
 
+    "tab.etf":         "ETF",
     "tab.stocks":      "주식",
     "tab.crypto":      "코인",
     "tab.realestate":  "부동산",
@@ -138,6 +140,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
   en: {
     "tab.markets":    "Markets",
     "tab.etfstocks":  "ETF · Stocks",
+    "tab.investors":  "Investors",
     "tab.foreign":    "Foreign Flow",
     "tab.quant":      "Quant",
     "live":           "LIVE",
@@ -198,6 +201,7 @@ export const DICT: Record<Lang, Record<string, string>> = {
     "tooltip.asset.30d":  "Based on 30-day return",
     "tooltip.krwusd":     "KRW/USD exchange rate\n\nValue of Korean won relative to the dollar.\nA higher number means a weaker won.",
 
+    "tab.etf":         "ETF",
     "tab.stocks":      "Stocks",
     "tab.crypto":      "Crypto",
     "tab.realestate":  "Real Estate",

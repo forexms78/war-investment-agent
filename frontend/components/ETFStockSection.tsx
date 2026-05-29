@@ -53,16 +53,21 @@ interface Props {
   krwUsd?: number;
   krwUsdChange?: number | null;
   marketDrivers?: MarketDriver[];
+  filter?: "etf" | "stock";
 }
 
 export default function ETFStockSection({
   onSelect, onSelectEtf, usdKrw, data: dataProp,
-  fedRate, krwUsd, krwUsdChange, marketDrivers,
+  fedRate, krwUsd, krwUsdChange, marketDrivers, filter,
 }: Props) {
   const { t, lang } = useT();
   const [data, setData] = useState<ETFSignalsData | null>(dataProp ?? null);
   const [loading, setLoading] = useState(!dataProp);
-  const [activeGroup, setActiveGroup] = useState<Group>("us_etf");
+  const GROUPS_FOR_FILTER: Group[] =
+    filter === "etf" ? ["us_etf", "kr_etf"]
+    : filter === "stock" ? ["us_stocks", "kr_stocks"]
+    : ["us_etf", "kr_etf", "us_stocks", "kr_stocks"];
+  const [activeGroup, setActiveGroup] = useState<Group>(GROUPS_FOR_FILTER[0]);
 
   useEffect(() => {
     if (dataProp) { setData(dataProp); setLoading(false); return; }
@@ -122,8 +127,9 @@ export default function ETFStockSection({
     : "";
 
   return (
-    <div className="wx-main fade-in">
+    <div className={filter ? "fade-in" : "wx-main fade-in"}>
       {/* Sidebar */}
+      {!filter && (
       <aside className="wx-sidebar">
         <div className="wx-sidebar-block">
           <div className="wx-sidebar-title">
@@ -165,7 +171,7 @@ export default function ETFStockSection({
             <span>{lang === "ko" ? "카테고리" : "Category"}</span>
           </div>
           <div className="wx-sidebar-nav">
-            {(["us_etf", "kr_etf", "us_stocks", "kr_stocks"] as Group[]).map(gid => (
+            {GROUPS_FOR_FILTER.map(gid => (
               <button
                 key={gid}
                 aria-pressed={activeGroup === gid}
@@ -202,6 +208,7 @@ export default function ETFStockSection({
           </div>
         )}
       </aside>
+      )}
 
       {/* Main content */}
       <div className="wx-content">
@@ -213,7 +220,7 @@ export default function ETFStockSection({
             </span>
           </div>
           <div className="wx-groups" role="tablist">
-            {(["us_etf", "kr_etf", "us_stocks", "kr_stocks"] as Group[]).map(gid => (
+            {GROUPS_FOR_FILTER.map(gid => (
               <button
                 key={gid}
                 className="wx-group-btn"
