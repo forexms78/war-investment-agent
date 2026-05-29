@@ -540,6 +540,23 @@ button { font-family: inherit; cursor: pointer; }
   }
 }
 
+/* 투자자 포트폴리오 행 */
+.wx-pf-row {
+  display: grid;
+  grid-template-columns: 1fr 54px 82px 60px 54px;
+  align-items: center;
+  gap: 8px;
+}
+.wx-pf-row-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.wx-pf-row-item:hover {
+  background: var(--card-hover);
+}
+
 .wx-etf-row {
   display: grid;
   grid-template-columns: 30px minmax(180px, 1.5fr) 90px 110px 70px 70px 60px 60px 60px 20px;

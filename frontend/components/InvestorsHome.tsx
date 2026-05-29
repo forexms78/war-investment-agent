@@ -1,8 +1,85 @@
 "use client";
-import { useState } from "react";
-import { InvestorSummary, RecommendedStock } from "@/types";
+import { useState, useEffect } from "react";
+import { InvestorSummary, RecommendedStock, InvestorDetail } from "@/types";
 import SkeletonCard from "@/components/SkeletonCard";
 import { useT } from "@/contexts/LanguageContext";
+
+const API = process.env.NEXT_PUBLIC_API_URL;
+
+// 투자자 소속사 → 로고 도메인 (clearbit). 없으면 이니셜 fallback.
+const FIRM_DOMAIN: Record<string, string> = {
+  "Berkshire Hathaway": "berkshirehathaway.com",
+  "ARK Invest": "ark-funds.com",
+  "Bridgewater Associates": "bridgewater.com",
+  "Pershing Square": "pershingsquareholdings.com",
+  "Scion Asset Management": "scionasset.com",
+  "Duquesne Family Office": "duquesnefamilyoffice.com",
+  "Soros Fund Management": "sorosfundmgmt.com",
+  "Appaloosa Management": "appaloosamanagement.com",
+};
+
+const ACTION: Record<string, { ko: string; en: string; color: string }> = {
+  buy:  { ko: "매수", en: "BUY",  color: "var(--up)" },
+  sell: { ko: "매도", en: "SELL", color: "var(--down)" },
+  hold: { ko: "보유", en: "HOLD", color: "var(--text-muted)" },
+};
+
+function fmtShares(n: number, lang: string): string {
+  if (!n) return "-";
+  if (lang === "ko") {
+    if (n >= 1e8) return (n / 1e8).toFixed(1) + "억주";
+    if (n >= 1e4) return Math.round(n / 1e4).toLocaleString() + "만주";
+    return n.toLocaleString() + "주";
+  }
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return Math.round(n / 1e3) + "K";
+  return String(n);
+}
+
+function TickerLogo({ ticker, size = 24 }: { ticker: string; size?: number }) {
+  const [err, setErr] = useState(false);
+  if (err) {
+    return (
+      <span style={{
+        width: size, height: size, borderRadius: 5, background: "var(--accent-dim)",
+        color: "var(--accent)", fontSize: size * 0.36, fontWeight: 800,
+        display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+      }}>{ticker.slice(0, 2)}</span>
+    );
+  }
+  return (
+    <img
+      src={`https://assets.parqet.com/logos/symbol/${ticker}?format=png`}
+      width={size} height={size} alt=""
+      style={{ borderRadius: 5, objectFit: "contain", background: "#fff", flexShrink: 0 }}
+      onError={() => setErr(true)}
+    />
+  );
+}
+
+function FirmLogo({ firm, initial, color, size = 30 }: {
+  firm: string; initial: string; color: string; size?: number;
+}) {
+  const domain = FIRM_DOMAIN[firm];
+  const [err, setErr] = useState(!domain);
+  if (err || !domain) {
+    return (
+      <span style={{
+        width: size, height: size, borderRadius: 8, background: `${color}22`,
+        border: `1px solid ${color}55`, color, fontSize: size * 0.36, fontWeight: 800,
+        display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+      }}>{initial}</span>
+    );
+  }
+  return (
+    <img
+      src={`https://logo.clearbit.com/${domain}`}
+      width={size} height={size} alt=""
+      style={{ borderRadius: 8, objectFit: "contain", background: "#fff", padding: 2, flexShrink: 0 }}
+      onError={() => setErr(true)}
+    />
+  );
+}
 
 interface Props {
   investors: InvestorSummary[];
@@ -53,6 +130,7 @@ export default function InvestorsHome({
                   active={selected === inv.id}
                   onClick={() => setSelected(inv.id)}
                   color={inv.color}
+                  firm={inv.firm}
                   initial={inv.avatar_initial}
                 />
               ))}
@@ -75,8 +153,8 @@ export default function InvestorsHome({
             <InvestorPanel
               investor={activeInvestor}
               lang={lang}
-              onOpenDetail={() => onSelectInvestor(activeInvestor.id)}
               onSelectStock={onSelectStock}
+              onOpenDetail={() => onSelectInvestor(activeInvestor.id)}
             />
           ) : null}
         </div>
@@ -85,13 +163,9 @@ export default function InvestorsHome({
   );
 }
 
-function NavItem({ label, sub, active, onClick, color, initial }: {
-  label: string;
-  sub: string;
-  active: boolean;
-  onClick: () => void;
-  color: string;
-  initial?: string;
+function NavItem({ label, sub, active, onClick, color, initial, firm }: {
+  label: string; sub: string; active: boolean; onClick: () => void;
+  color: string; initial?: string; firm?: string;
 }) {
   return (
     <button
@@ -106,12 +180,8 @@ function NavItem({ label, sub, active, onClick, color, initial }: {
       onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--card-hover)"; }}
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
     >
-      {initial ? (
-        <span style={{
-          width: 30, height: 30, borderRadius: 8, background: `${color}22`,
-          border: `1px solid ${color}55`, color, fontSize: 11, fontWeight: 800,
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>{initial}</span>
+      {initial && firm ? (
+        <FirmLogo firm={firm} initial={initial} color={color} size={30} />
       ) : (
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, margin: "0 11px" }} />
       )}
@@ -130,90 +200,115 @@ function NavItem({ label, sub, active, onClick, color, initial }: {
   );
 }
 
-function InvestorPanel({ investor, lang, onOpenDetail, onSelectStock }: {
+function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
   investor: InvestorSummary;
   lang: string;
-  onOpenDetail: () => void;
   onSelectStock: (ticker: string) => void;
+  onOpenDetail: () => void;
 }) {
+  const [detail, setDetail] = useState<InvestorDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setDetail(null);
+    fetch(`${API}/investors/${investor.id}`)
+      .then(r => r.json())
+      .then(d => { if (alive) setDetail(d); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [investor.id]);
+
+  const portfolio = detail?.portfolio ?? [];
+
   return (
     <div style={{
       background: "var(--surface)", border: "1px solid var(--border)",
       borderRadius: 14, padding: 22, borderTop: `2px solid ${investor.color}`,
     }}>
       {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{
-            width: 52, height: 52, borderRadius: 12, background: `${investor.color}22`,
-            border: `1.5px solid ${investor.color}55`, color: investor.color,
-            fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>{investor.avatar_initial}</div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>{investor.name}</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-              {investor.firm} · {investor.title}
-            </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+        <FirmLogo firm={investor.firm} initial={investor.avatar_initial} color={investor.color} size={52} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>{investor.name}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+            {investor.firm} · {investor.title}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{
-            fontSize: 11, fontWeight: 600, padding: "4px 10px",
-            background: `${investor.color}18`, color: investor.color, borderRadius: 6, whiteSpace: "nowrap",
-          }}>{investor.style}</span>
-          <button
-            onClick={onOpenDetail}
-            style={{
-              fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
-              background: "var(--accent-dim)", color: "var(--accent)", border: "1px solid var(--accent-glow)", whiteSpace: "nowrap",
-            }}
-          >
-            {lang === "ko" ? "포트폴리오 자세히" : "Full portfolio"}
-          </button>
-        </div>
+        <span style={{
+          marginLeft: "auto", fontSize: 11, fontWeight: 600, padding: "4px 10px",
+          background: `${investor.color}18`, color: investor.color, borderRadius: 6, whiteSpace: "nowrap",
+        }}>{investor.style}</span>
       </div>
 
-      {/* 설명 */}
-      <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.65, marginBottom: 12 }}>
+      <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.65, marginBottom: 18 }}>
         {investor.description}
       </p>
-      <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 18 }}>
-        <span style={{ color: investor.color, fontWeight: 700, marginRight: 6 }}>{lang === "ko" ? "대표 이력" : "Known for"}</span>
-        {investor.known_for}
+
+      {/* 포트폴리오 */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>{lang === "ko" ? "보유 포트폴리오" : "Holdings"}</span>
+        <button
+          onClick={onOpenDetail}
+          style={{ fontSize: 11, color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+        >{lang === "ko" ? "뉴스·AI 인사이트 →" : "News & AI →"}</button>
       </div>
 
-      {/* 보유 종목 */}
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
-        {lang === "ko" ? "주요 보유 종목" : "Top holdings"}
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-        {investor.holdings_data.map(h => {
-          const isUp = (h.change_30d_pct ?? 0) >= 0;
-          return (
-            <button
-              key={h.ticker}
-              onClick={() => onSelectStock(h.ticker)}
-              style={{
-                background: "var(--accent-dim)", border: "1px solid var(--accent-glow)",
-                borderRadius: 8, padding: "6px 12px", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 7,
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{h.ticker}</span>
-              {h.change_30d_pct != null && (
-                <span style={{ fontSize: 11, fontWeight: 500, color: isUp ? "var(--up)" : "var(--down)" }}>
-                  {isUp ? "+" : ""}{h.change_30d_pct.toFixed(1)}%
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} height={44} />)}
+        </div>
+      ) : portfolio.length === 0 ? (
+        <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
+          {lang === "ko" ? "포트폴리오 데이터 없음" : "No holdings data"}
+        </div>
+      ) : (
+        <div>
+          {/* 헤더 행 */}
+          <div className="wx-pf-row" style={{ padding: "4px 10px", color: "var(--text-muted)", fontSize: 11, fontWeight: 600 }}>
+            <span>{lang === "ko" ? "종목" : "Stock"}</span>
+            <span style={{ textAlign: "right" }}>{lang === "ko" ? "비중" : "Weight"}</span>
+            <span style={{ textAlign: "right" }}>{lang === "ko" ? "보유" : "Shares"}</span>
+            <span style={{ textAlign: "right" }}>30D</span>
+            <span style={{ textAlign: "center" }}>{lang === "ko" ? "동향" : ""}</span>
+          </div>
+          {portfolio.map(h => {
+            const act = ACTION[h.action] ?? ACTION.hold;
+            const chg = h.change_30d_pct;
+            return (
+              <div
+                key={h.ticker}
+                className="wx-pf-row wx-pf-row-item"
+                onClick={() => onSelectStock(h.ticker)}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                  <TickerLogo ticker={h.ticker} size={24} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{h.ticker}</span>
+                    <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
+                  </span>
                 </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+                <span style={{ textAlign: "right", fontSize: 13, fontWeight: 700 }}>{h.weight}%</span>
+                <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-secondary)" }}>{fmtShares(h.shares, lang)}</span>
+                <span style={{ textAlign: "right", fontSize: 12, color: chg == null ? "var(--text-muted)" : chg >= 0 ? "var(--up)" : "var(--down)" }}>
+                  {chg == null ? "-" : `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`}
+                </span>
+                <span style={{ textAlign: "center" }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `color-mix(in srgb, ${act.color} 18%, transparent)`, color: act.color }}>
+                    {lang === "ko" ? act.ko : act.en}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* 최근 동향 */}
       <div style={{
         fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6,
-        borderTop: "1px solid var(--border)", paddingTop: 14,
+        borderTop: "1px solid var(--border)", paddingTop: 14, marginTop: 16,
       }}>
         <span style={{ color: "var(--gold)", fontWeight: 700, fontSize: 11, marginRight: 6 }}>LATEST</span>
         {investor.recent_moves}
@@ -230,11 +325,8 @@ function ConsensusCard({ title, side, items, onSelectStock, lang }: {
   lang: string;
 }) {
   const color = side === "buy" ? "var(--up)" : "var(--down)";
-  const top = items.slice(0, 8);
+  const top = items.slice(0, 10);
   const unit = lang === "ko" ? "인" : "";
-  const verb = side === "buy"
-    ? (lang === "ko" ? "보유" : " hold")
-    : (lang === "ko" ? "매도" : " sell");
 
   return (
     <div style={{
@@ -255,32 +347,29 @@ function ConsensusCard({ title, side, items, onSelectStock, lang }: {
         </div>
       ) : (
         <div style={{ padding: "4px 0" }}>
-          {top.map((it, i) => {
-            const names = side === "buy" ? it.buyers : it.sellers;
-            const cnt = it.count ?? names?.length ?? 0;
+          {top.map(it => {
+            const names = (side === "buy" ? it.buyers : it.sellers) ?? [];
+            const cnt = it.count ?? names.length ?? 0;
             return (
               <div
                 key={it.ticker}
                 onClick={() => onSelectStock(it.ticker)}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "9px 16px", cursor: "pointer", gap: 12,
-                }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", cursor: "pointer", gap: 12 }}
                 onMouseEnter={e => { e.currentTarget.style.background = "var(--card-hover)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                  <span style={{ fontSize: 11, color: "var(--text-muted)", width: 16, flexShrink: 0 }}>{i + 1}</span>
+                  <TickerLogo ticker={it.ticker} size={26} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{it.ticker}</div>
                     <div style={{
                       fontSize: 11, color: "var(--text-muted)",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>{it.name}</div>
+                    }}>{names.length > 0 ? names.join(", ") : it.name}</div>
                   </div>
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color, flexShrink: 0, whiteSpace: "nowrap" }}>
-                  {cnt}{unit}{verb}
+                <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0, whiteSpace: "nowrap" }}>
+                  {cnt}{unit}
                 </span>
               </div>
             );
