@@ -202,8 +202,20 @@ _TOTAL_POSITIONS = {
     "george-soros":           263,
     "david-tepper":           31,
 }
+# 13f.info 매니저 slug (CIK) — 분기별 보유 종목 크롤링용
+_CIK_SLUG = {
+    "warren-buffett":        "0001067983-berkshire-hathaway-inc",
+    "cathie-wood":           "0001697748-ark-investment-management-llc",
+    "michael-burry":         "0001649339-scion-asset-management-llc",
+    "ray-dalio":             "0001350694-bridgewater-associates-lp",
+    "stanley-druckenmiller": "0001536411-duquesne-family-office-llc",
+    "bill-ackman":           "0001336528-pershing-square-capital-management-l-p",
+    "george-soros":          "0001029160-soros-fund-management-llc",
+    "david-tepper":          "0001656456-appaloosa-lp",
+}
 for _inv in INVESTORS:
     _inv["total_positions"] = _TOTAL_POSITIONS.get(_inv["id"], len(_inv["portfolio"]))
+    _inv["cik_slug"] = _CIK_SLUG.get(_inv["id"], "")
 
 _investor_map = {inv["id"]: inv for inv in INVESTORS}
 

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { InvestorSummary, RecommendedStock, InvestorDetail } from "@/types";
+import { InvestorSummary, RecommendedStock, InvestorDetail, Investor13F, Holding13F } from "@/types";
 import SkeletonCard from "@/components/SkeletonCard";
 import { useT } from "@/contexts/LanguageContext";
 
@@ -34,6 +34,20 @@ function fmtShares(n: number, lang: string): string {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
   if (n >= 1e3) return Math.round(n / 1e3) + "K";
   return String(n);
+}
+
+function fmtValue(usd: number, krw: number | undefined, lang: string): string {
+  if (!usd) return "-";
+  const u = usd >= 1e9 ? `$${(usd / 1e9).toFixed(1)}B`
+    : usd >= 1e6 ? `$${(usd / 1e6).toFixed(0)}M`
+    : `$${Math.round(usd / 1e3)}K`;
+  if (!krw) return u;
+  const w = usd * krw;
+  if (lang !== "ko") return u;
+  const k = w >= 1e12 ? `₩${(w / 1e12).toFixed(1)}조`
+    : w >= 1e8 ? `₩${Math.round(w / 1e8)}억`
+    : `₩${Math.round(w / 1e4)}만`;
+  return `${u} · ${k}`;
 }
 
 function TickerLogo({ ticker, size = 24 }: { ticker: string; size?: number }) {
@@ -91,10 +105,11 @@ interface Props {
   loadingInvestors: boolean;
   onSelectInvestor: (id: string) => void;
   onSelectStock: (ticker: string) => void;
+  usdKrw?: number;
 }
 
 export default function InvestorsHome({
-  investors, recommendations, loadingInvestors, onSelectInvestor, onSelectStock,
+  investors, recommendations, loadingInvestors, onSelectInvestor, onSelectStock, usdKrw,
 }: Props) {
   const { lang } = useT();
   const [selected, setSelected] = useState<string>("consensus");
@@ -174,6 +189,7 @@ export default function InvestorsHome({
               lang={lang}
               onSelectStock={onSelectStock}
               onOpenDetail={() => onSelectInvestor(activeInvestor.id)}
+              usdKrw={usdKrw}
             />
           ) : null}
         </div>
@@ -219,27 +235,37 @@ function NavItem({ label, sub, active, onClick, color, initial, firm }: {
   );
 }
 
-function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
+function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail, usdKrw }: {
   investor: InvestorSummary;
   lang: string;
   onSelectStock: (ticker: string) => void;
   onOpenDetail: () => void;
+  usdKrw?: number;
 }) {
+  const [tf, setTf] = useState<Investor13F | null>(null);
   const [detail, setDetail] = useState<InvestorDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [qIdx, setQIdx] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setDetail(null);
-    fetch(`${API}/investors/${investor.id}`)
-      .then(r => r.json())
-      .then(d => { if (alive) setDetail(d); })
+    setLoading(true); setTf(null); setDetail(null); setQIdx(0);
+    Promise.all([
+      fetch(`${API}/investors/${investor.id}/13f`).then(r => r.json()).catch(() => null),
+      fetch(`${API}/investors/${investor.id}`).then(r => r.json()).catch(() => null),
+    ]).then(([t, d]) => { if (alive) { setTf(t); setDetail(d); } })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [investor.id]);
 
-  const portfolio = detail?.portfolio ?? [];
+  const quarters = tf?.quarters ?? [];
+  const hasQ = quarters.length > 0;
+  const q = hasQ ? quarters[Math.min(qIdx, quarters.length - 1)] : null;
+  // 13F 분기 데이터 우선, 없으면 하드코딩 portfolio 폴백
+  const rows: Array<Holding13F | { ticker: string; name: string; weight: number; shares: number; action: string; change_30d_pct?: number | null }> =
+    q ? q.holdings : (detail?.portfolio ?? []);
+  const totalCount = q ? q.count : (detail?.total_positions ?? rows.length);
+  const period = q ? (q.filed_date ? `${q.filed_date} 공시` : (q.as_of_date ? `${q.as_of_date} 기준` : "")) : "";
 
   return (
     <div style={{
@@ -265,16 +291,28 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
         {investor.description}
       </p>
 
-      {/* 포트폴리오 */}
+      {/* 포트폴리오 + 분기 선택 */}
       <div style={{ marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>
-            {lang === "ko" ? "주요 보유 종목" : "Top holdings"}
-            {detail?.total_positions ? (
-              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginLeft: 6 }}>
-                {lang === "ko"
-                  ? `상위 ${portfolio.length} / 전체 ${detail.total_positions.toLocaleString()}개`
-                  : `top ${portfolio.length} of ${detail.total_positions.toLocaleString()}`}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{lang === "ko" ? "보유 포트폴리오" : "Holdings"}</span>
+            {hasQ && (
+              <select
+                value={qIdx}
+                onChange={e => setQIdx(Number(e.target.value))}
+                style={{
+                  fontSize: 12, fontWeight: 600, padding: "3px 8px", borderRadius: 8,
+                  background: "var(--bg-2)", color: "var(--text-primary)", border: "1px solid var(--border)", cursor: "pointer",
+                }}
+              >
+                {quarters.map((qq, i) => (
+                  <option key={i} value={i}>{qq.as_of} ({qq.count}{lang === "ko" ? "종목" : ""})</option>
+                ))}
+              </select>
+            )}
+            {totalCount ? (
+              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)" }}>
+                {lang === "ko" ? `상위 ${rows.length} / 전체 ${totalCount.toLocaleString()}개` : `top ${rows.length} of ${totalCount.toLocaleString()}`}
               </span>
             ) : null}
           </span>
@@ -284,9 +322,13 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
           >{lang === "ko" ? "뉴스·AI 인사이트 →" : "News & AI →"}</button>
         </div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, lineHeight: 1.5 }}>
-          {lang === "ko"
-            ? "동향(매수·보유·매도)은 2026 Q1 13F 기준 전분기 대비 종목별 증감입니다."
-            : "Action reflects per-stock change vs prior quarter (Q1 2026 13F)."}
+          {hasQ
+            ? (lang === "ko"
+                ? `${q!.as_of} 13F${period ? ` · ${period}` : ""} · 동향은 직전 분기 대비 매수·보유·매도 (평단·정확 매수일은 13F 미공시)`
+                : `${q!.as_of} 13F${period ? ` · ${period}` : ""} · action vs prior quarter`)
+            : (lang === "ko"
+                ? "동향(매수·보유·매도)은 13F 기준 직전 분기 대비 종목별 증감입니다."
+                : "Action reflects per-stock change vs prior quarter (13F).")}
         </div>
       </div>
 
@@ -294,9 +336,9 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} height={44} />)}
         </div>
-      ) : portfolio.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>
-          {lang === "ko" ? "포트폴리오 데이터 없음" : "No holdings data"}
+          {lang === "ko" ? "보유 종목 데이터를 준비 중입니다." : "No holdings data"}
         </div>
       ) : (
         <div>
@@ -305,12 +347,13 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
             <span>{lang === "ko" ? "종목" : "Stock"}</span>
             <span style={{ textAlign: "right" }}>{lang === "ko" ? "비중" : "Weight"}</span>
             <span style={{ textAlign: "right" }}>{lang === "ko" ? "보유" : "Shares"}</span>
-            <span style={{ textAlign: "right" }}>30D</span>
+            <span style={{ textAlign: "right" }}>{hasQ ? (lang === "ko" ? "보유액" : "Value") : "30D"}</span>
             <span style={{ textAlign: "center" }}>{lang === "ko" ? "동향" : ""}</span>
           </div>
-          {portfolio.map(h => {
+          {rows.map(h => {
             const act = ACTION[h.action] ?? ACTION.hold;
-            const chg = h.change_30d_pct;
+            const valueUsd = (h as Holding13F).value_usd;
+            const chg = (h as { change_30d_pct?: number | null }).change_30d_pct;
             return (
               <div
                 key={h.ticker}
@@ -326,8 +369,10 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
                 </span>
                 <span style={{ textAlign: "right", fontSize: 13, fontWeight: 700 }}>{h.weight}%</span>
                 <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-secondary)" }}>{fmtShares(h.shares, lang)}</span>
-                <span style={{ textAlign: "right", fontSize: 12, color: chg == null ? "var(--text-muted)" : chg >= 0 ? "var(--up)" : "var(--down)" }}>
-                  {chg == null ? "-" : `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`}
+                <span style={{ textAlign: "right", fontSize: 11, color: "var(--text-secondary)" }}>
+                  {hasQ
+                    ? fmtValue(valueUsd, usdKrw, lang)
+                    : (chg == null ? "-" : `${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`)}
                 </span>
                 <span style={{ textAlign: "center" }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `color-mix(in srgb, ${act.color} 18%, transparent)`, color: act.color }}>

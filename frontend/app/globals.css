@@ -543,7 +543,7 @@ button { font-family: inherit; cursor: pointer; }
 /* 투자자 포트폴리오 행 */
 .wx-pf-row {
   display: grid;
-  grid-template-columns: 1fr 54px 82px 60px 54px;
+  grid-template-columns: 1fr 48px 70px 104px 48px;
   align-items: center;
   gap: 8px;
 }

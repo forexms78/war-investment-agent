@@ -233,6 +233,13 @@ async def get_investor_detail(investor_id: str):
     return result
 
 
+@app.get("/investors/{investor_id}/13f")
+async def investor_13f(investor_id: str):
+    """투자자 13F 분기별 보유 종목 (DB-Only — 스케줄러가 13f.info 크롤링)."""
+    cached = await _run(db_get_stale, f"investor_13f_{investor_id}")
+    return cached or {"investor_id": investor_id, "quarters": []}
+
+
 # ─────────────────────────────────────────────
 # 종목
 # ─────────────────────────────────────────────

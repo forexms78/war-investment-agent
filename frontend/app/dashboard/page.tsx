@@ -339,6 +339,7 @@ export default function Home() {
               loadingInvestors={loadingInvestors}
               onSelectInvestor={setSelectedInvestor}
               onSelectStock={setSelectedStock}
+              usdKrw={moneyFlow?.korea_rates?.usd_krw ?? undefined}
             />
           </div>
         )}

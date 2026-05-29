@@ -137,6 +137,32 @@ export interface RecommendedStock {
   change_30d_pct?: number | null;
 }
 
+export interface Holding13F {
+  ticker: string;
+  name: string;
+  cusip?: string;
+  value_usd: number;
+  weight: number;
+  shares: number;
+  action: "buy" | "sell" | "hold";
+}
+
+export interface Quarter13F {
+  as_of: string;
+  as_of_date?: string;
+  filed_date?: string;
+  filing_id?: string;
+  total_value_usd: number;
+  count: number;
+  holdings: Holding13F[];
+}
+
+export interface Investor13F {
+  investor_id: string;
+  quarters: Quarter13F[];
+  updated_at?: string;
+}
+
 export interface CoinData {
   id: string;
   symbol: string;

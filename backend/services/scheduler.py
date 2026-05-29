@@ -427,6 +427,37 @@ async def refresh_news_ai():
         logger.error(f"❌ [scheduler] news_ai 갱신 실패: {e}")
 
 
+async def refresh_holdings_13f():
+    """8인 투자자 13F 분기별 보유 종목 크롤링 (13f.info) → Supabase.
+    13F는 분기 공시(2·5·8·11월 중순). 매일 1회 변경 감지(동일하면 덮어쓰기, 무해).
+    실패 시 기존 데이터 유지 (외국인 매매 패턴)."""
+    from backend.services.holdings_13f import build_investor_13f
+    from backend.services.investors import get_all_investors
+    from backend.services.db_cache import db_set
+    from datetime import datetime
+
+    ok = 0
+    for inv in get_all_investors():
+        slug = inv.get("cik_slug")
+        if not slug:
+            continue
+        try:
+            snaps = await _run_sync(build_investor_13f, slug, 6)
+            if snaps:
+                await _run_sync(db_set, f"investor_13f_{inv['id']}", {
+                    "investor_id": inv["id"],
+                    "quarters": snaps,
+                    "updated_at": datetime.now(_KST).isoformat(),
+                })
+                ok += 1
+            else:
+                logger.warning(f"⚠️ [scheduler] 13f {inv['id']} 빈 응답 — 기존 유지")
+        except Exception as e:
+            logger.error(f"❌ [scheduler] 13f {inv['id']} 실패: {e}")
+        await asyncio.sleep(1.0)  # 13f.info rate limit 예의
+    logger.info(f"✅ [scheduler] holdings_13f 갱신 완료 ({ok}/8)")
+
+
 async def refresh_foreign_flow():
     """외국인 매매 데이터 갱신 — 종목 TOP(네이버) + 시장 합계(네이버 모바일).
     네이버는 두 데이터 모두 과거 날짜 조회 불가(bizdate 파라미터 무시) — 매일 누적으로 시계열 구축.
@@ -654,6 +685,11 @@ async def warm_all_caches():
         logger.info("🔥 [scheduler] foreign_flow 미스/당일 누락 → 즉시 1회 실행")
         asyncio.create_task(refresh_foreign_flow())
 
+    tf_cached = await _run_sync(db_get_stale, "investor_13f_warren-buffett")
+    if not tf_cached:
+        logger.info("🔥 [scheduler] holdings_13f DB 미스 → 즉시 1회 실행")
+        asyncio.create_task(refresh_holdings_13f())
+
 
 def create_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone="UTC")
@@ -679,6 +715,7 @@ def create_scheduler() -> AsyncIOScheduler:
     # ── AI 추천 회고 — 매일 KST 07:00 (UTC 22:00) 검증 + 실패분석 ──
     scheduler.add_job(refresh_review_cycle, CronTrigger(hour=22, minute=0, timezone="UTC"), id="review_cycle", max_instances=1)
     # ── 외국인 매매 종목 TOP(네이버) — KST 16:30 장 마감 후 1차 + 17:30 백업 (UTC 07:30 / 08:30) ──
+    scheduler.add_job(refresh_holdings_13f, CronTrigger(hour=21, minute=0, timezone="UTC"), id="holdings_13f", max_instances=1, misfire_grace_time=7200)
     scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=7, minute=30, timezone="UTC"), id="foreign_flow",        max_instances=1, misfire_grace_time=7200)
     scheduler.add_job(refresh_foreign_flow, CronTrigger(hour=8, minute=30, timezone="UTC"), id="foreign_flow_backup", max_instances=1, misfire_grace_time=7200)
     # ── 예측 정확도 평가 — KST 18:30 장 마감 1시간 후 (UTC 09:30) ──
