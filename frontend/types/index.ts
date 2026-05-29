@@ -18,6 +18,7 @@ export interface InvestorSummary {
   top_holdings: string[];
   recent_moves: string;
   holdings_data: HoldingData[];
+  total_positions?: number;
 }
 
 export interface PortfolioHolding {
@@ -55,6 +56,7 @@ export interface InvestorDetail {
   portfolio: PortfolioHolding[];
   news: NewsItem[];
   insight: string;
+  total_positions?: number;
 }
 
 export interface ChartPoint {

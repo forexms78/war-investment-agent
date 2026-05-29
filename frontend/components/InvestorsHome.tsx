@@ -266,12 +266,28 @@ function InvestorPanel({ investor, lang, onSelectStock, onOpenDetail }: {
       </p>
 
       {/* 포트폴리오 */}
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 700 }}>{lang === "ko" ? "보유 포트폴리오" : "Holdings"}</span>
-        <button
-          onClick={onOpenDetail}
-          style={{ fontSize: 11, color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-        >{lang === "ko" ? "뉴스·AI 인사이트 →" : "News & AI →"}</button>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            {lang === "ko" ? "주요 보유 종목" : "Top holdings"}
+            {detail?.total_positions ? (
+              <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginLeft: 6 }}>
+                {lang === "ko"
+                  ? `상위 ${portfolio.length} / 전체 ${detail.total_positions.toLocaleString()}개`
+                  : `top ${portfolio.length} of ${detail.total_positions.toLocaleString()}`}
+              </span>
+            ) : null}
+          </span>
+          <button
+            onClick={onOpenDetail}
+            style={{ fontSize: 11, color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", whiteSpace: "nowrap" }}
+          >{lang === "ko" ? "뉴스·AI 인사이트 →" : "News & AI →"}</button>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, lineHeight: 1.5 }}>
+          {lang === "ko"
+            ? "동향(매수·보유·매도)은 2026 Q1 13F 기준 전분기 대비 종목별 증감입니다."
+            : "Action reflects per-stock change vs prior quarter (Q1 2026 13F)."}
+        </div>
       </div>
 
       {loading ? (

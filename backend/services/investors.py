@@ -191,6 +191,20 @@ INVESTORS = [
     },
 ]
 
+# 각 투자자의 실제 13F 총 보유 종목 수 (2026 Q1) — 우리는 상위 비중만 큐레이션
+_TOTAL_POSITIONS = {
+    "warren-buffett":         29,
+    "cathie-wood":            182,
+    "michael-burry":          4,
+    "ray-dalio":              992,
+    "stanley-druckenmiller":  70,
+    "bill-ackman":            11,
+    "george-soros":           263,
+    "david-tepper":           31,
+}
+for _inv in INVESTORS:
+    _inv["total_positions"] = _TOTAL_POSITIONS.get(_inv["id"], len(_inv["portfolio"]))
+
 _investor_map = {inv["id"]: inv for inv in INVESTORS}
 
 
