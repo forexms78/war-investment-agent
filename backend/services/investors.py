@@ -198,32 +198,40 @@ def get_hot_tickers() -> list[str]:
     return sorted_tickers[:12]
 
 
-def get_buy_recommendations() -> list[dict]:
-    """복수 투자자가 매수 중인 종목"""
-    buy_map: dict[str, dict] = {}
+def _collect_by_action(action: str, names_key: str) -> list[dict]:
+    """해당 action(buy/sell) 종목을 집계 — 보유자(이름·소속사·비중·주식수·색) 명세 포함.
+    1인부터 모두 포함하며 보유자 수(count) → 비중합 순으로 정렬."""
+    by_ticker: dict[str, dict] = {}
     for inv in INVESTORS:
         for holding in inv["portfolio"]:
-            if holding["action"] == "buy":
-                t = holding["ticker"]
-                if t not in buy_map:
-                    buy_map[t] = {"ticker": t, "name": holding["name"], "buyers": [], "weight_avg": 0}
-                buy_map[t]["buyers"].append(inv["name"])
-                buy_map[t]["weight_avg"] = round(
-                    (buy_map[t]["weight_avg"] * (len(buy_map[t]["buyers"]) - 1) + holding["weight"]) / len(buy_map[t]["buyers"]), 1
-                )
-    recs = [v for v in buy_map.values() if len(v["buyers"]) >= 2]
-    return sorted(recs, key=lambda x: len(x["buyers"]), reverse=True)
+            if holding["action"] != action:
+                continue
+            t = holding["ticker"]
+            if t not in by_ticker:
+                by_ticker[t] = {"ticker": t, "name": holding["name"], names_key: [], "holders": []}
+            by_ticker[t][names_key].append(inv["name"])
+            by_ticker[t]["holders"].append({
+                "name":   inv["name"],
+                "firm":   inv["firm"],
+                "color":  inv["color"],
+                "weight": holding["weight"],
+                "shares": holding["shares"],
+            })
+    recs = list(by_ticker.values())
+    for r in recs:
+        r["count"] = len(r["holders"])
+    return sorted(
+        recs,
+        key=lambda x: (x["count"], sum(h["weight"] for h in x["holders"])),
+        reverse=True,
+    )
+
+
+def get_buy_recommendations() -> list[dict]:
+    """투자자들이 매수 중인 종목 — 보유자 명세 포함 (1인부터)."""
+    return _collect_by_action("buy", "buyers")
 
 
 def get_sell_recommendations() -> list[dict]:
-    """복수 투자자가 매도 중인 종목"""
-    sell_map: dict[str, dict] = {}
-    for inv in INVESTORS:
-        for holding in inv["portfolio"]:
-            if holding["action"] == "sell":
-                t = holding["ticker"]
-                if t not in sell_map:
-                    sell_map[t] = {"ticker": t, "name": holding["name"], "sellers": []}
-                sell_map[t]["sellers"].append(inv["name"])
-    recs = list(sell_map.values())
-    return sorted(recs, key=lambda x: len(x["sellers"]), reverse=True)
+    """투자자들이 매도 중인 종목 — 보유자 명세 포함 (1인부터)."""
+    return _collect_by_action("sell", "sellers")

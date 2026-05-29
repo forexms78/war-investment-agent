@@ -115,11 +115,20 @@ export interface HotStock {
   sector?: string;
 }
 
+export interface ConsensusHolder {
+  name: string;
+  firm: string;
+  color: string;
+  weight: number;
+  shares: number;
+}
+
 export interface RecommendedStock {
   ticker: string;
   name: string;
   buyers?: string[];
   sellers?: string[];
+  holders?: ConsensusHolder[];
   count: number;
   current_price?: number | null;
   change_30d_pct?: number | null;

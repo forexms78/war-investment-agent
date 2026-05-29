@@ -73,12 +73,16 @@ function FirmLogo({ firm, initial, color, size = 30 }: {
   }
   return (
     <img
-      src={`https://logo.clearbit.com/${domain}`}
+      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
       width={size} height={size} alt=""
-      style={{ borderRadius: 8, objectFit: "contain", background: "#fff", padding: 2, flexShrink: 0 }}
+      style={{ borderRadius: 8, objectFit: "contain", background: "#fff", padding: 3, flexShrink: 0 }}
       onError={() => setErr(true)}
     />
   );
+}
+
+function initialsOf(name: string): string {
+  return name.split(" ").map(w => w[0] ?? "").join("").slice(0, 2).toUpperCase();
 }
 
 interface Props {
@@ -325,7 +329,7 @@ function ConsensusCard({ title, side, items, onSelectStock, lang }: {
   lang: string;
 }) {
   const color = side === "buy" ? "var(--up)" : "var(--down)";
-  const top = items.slice(0, 10);
+  const top = items.slice(0, 12);
   const unit = lang === "ko" ? "인" : "";
 
   return (
@@ -346,31 +350,42 @@ function ConsensusCard({ title, side, items, onSelectStock, lang }: {
           {lang === "ko" ? "데이터 없음" : "No data"}
         </div>
       ) : (
-        <div style={{ padding: "4px 0" }}>
+        <div>
           {top.map(it => {
-            const names = (side === "buy" ? it.buyers : it.sellers) ?? [];
-            const cnt = it.count ?? names.length ?? 0;
+            const holders = it.holders ?? [];
+            const cnt = it.count ?? holders.length;
             return (
-              <div
-                key={it.ticker}
-                onClick={() => onSelectStock(it.ticker)}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", cursor: "pointer", gap: 12 }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--card-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <div key={it.ticker} style={{ borderBottom: "1px solid var(--border)", padding: "10px 14px" }}>
+                {/* 종목 헤더 */}
+                <div
+                  onClick={() => onSelectStock(it.ticker)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                >
                   <TickerLogo ticker={it.ticker} size={26} />
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>{it.ticker}</div>
-                    <div style={{
-                      fontSize: 11, color: "var(--text-muted)",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>{names.length > 0 ? names.join(", ") : it.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
                   </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0, whiteSpace: "nowrap" }}>
+                    {cnt}{unit}
+                  </span>
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0, whiteSpace: "nowrap" }}>
-                  {cnt}{unit}
-                </span>
+                {/* 보유자 명세 — 누가 얼마나 */}
+                {holders.length > 0 && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5, paddingLeft: 2 }}>
+                    {holders.map((h, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                          <FirmLogo firm={h.firm} initial={initialsOf(h.name)} color={h.color} size={16} />
+                          <span style={{ fontSize: 11, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", flexShrink: 0 }}>
+                          {h.weight}% · {fmtShares(h.shares, lang)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
