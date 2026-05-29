@@ -1,6 +1,6 @@
 "use client";
+import { useState } from "react";
 import { InvestorSummary, RecommendedStock } from "@/types";
-import InvestorCard from "@/components/InvestorCard";
 import SkeletonCard from "@/components/SkeletonCard";
 import { useT } from "@/contexts/LanguageContext";
 
@@ -16,12 +16,14 @@ export default function InvestorsHome({
   investors, recommendations, loadingInvestors, onSelectInvestor, onSelectStock,
 }: Props) {
   const { lang } = useT();
+  const [selected, setSelected] = useState<string>("consensus");
   const buy = recommendations?.buy ?? [];
   const sell = recommendations?.sell ?? [];
+  const activeInvestor = investors.find(i => i.id === selected) ?? null;
 
   return (
     <div className="fade-in">
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em" }}>
           {lang === "ko" ? "대형 투자자 포트폴리오" : "Super Investor Portfolios"}
         </div>
@@ -30,26 +32,191 @@ export default function InvestorsHome({
         </div>
       </div>
 
-      <div className="wx-consensus-grid">
-        <ConsensusCard
-          title={lang === "ko" ? "지금 사는 종목" : "Buying now"}
-          side="buy" items={buy} onSelectStock={onSelectStock} lang={lang}
-        />
-        <ConsensusCard
-          title={lang === "ko" ? "지금 파는 종목" : "Selling now"}
-          side="sell" items={sell} onSelectStock={onSelectStock} lang={lang}
-        />
+      <div className="wx-investors-layout">
+        {/* 좌측 네비 */}
+        <nav className="wx-inv-nav">
+          <NavItem
+            label={lang === "ko" ? "종합 컨센서스" : "Consensus"}
+            sub={lang === "ko" ? "지금 사는 / 파는 종목" : "Buying / Selling now"}
+            active={selected === "consensus"}
+            onClick={() => setSelected("consensus")}
+            color="var(--accent)"
+          />
+          <div style={{ height: 1, background: "var(--border)", margin: "8px 4px" }} />
+          {loadingInvestors
+            ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} height={44} />)
+            : investors.map(inv => (
+                <NavItem
+                  key={inv.id}
+                  label={inv.name}
+                  sub={inv.firm}
+                  active={selected === inv.id}
+                  onClick={() => setSelected(inv.id)}
+                  color={inv.color}
+                  initial={inv.avatar_initial}
+                />
+              ))}
+        </nav>
+
+        {/* 우측 콘텐츠 */}
+        <div style={{ minWidth: 0 }}>
+          {selected === "consensus" ? (
+            <div className="wx-consensus-grid">
+              <ConsensusCard
+                title={lang === "ko" ? "지금 사는 종목" : "Buying now"}
+                side="buy" items={buy} onSelectStock={onSelectStock} lang={lang}
+              />
+              <ConsensusCard
+                title={lang === "ko" ? "지금 파는 종목" : "Selling now"}
+                side="sell" items={sell} onSelectStock={onSelectStock} lang={lang}
+              />
+            </div>
+          ) : activeInvestor ? (
+            <InvestorPanel
+              investor={activeInvestor}
+              lang={lang}
+              onOpenDetail={() => onSelectInvestor(activeInvestor.id)}
+              onSelectStock={onSelectStock}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NavItem({ label, sub, active, onClick, color, initial }: {
+  label: string;
+  sub: string;
+  active: boolean;
+  onClick: () => void;
+  color: string;
+  initial?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%",
+        padding: "9px 12px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+        background: active ? "var(--accent-dim)" : "transparent",
+        border: active ? "1px solid var(--accent-glow)" : "1px solid transparent",
+        transition: "all 0.15s",
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--card-hover)"; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+    >
+      {initial ? (
+        <span style={{
+          width: 30, height: 30, borderRadius: 8, background: `${color}22`,
+          border: `1px solid ${color}55`, color, fontSize: 11, fontWeight: 800,
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>{initial}</span>
+      ) : (
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0, margin: "0 11px" }} />
+      )}
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{
+          display: "block", fontSize: 13, fontWeight: active ? 700 : 600,
+          color: active ? "var(--accent)" : "var(--text-primary)",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{label}</span>
+        <span style={{
+          display: "block", fontSize: 11, color: "var(--text-muted)",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{sub}</span>
+      </span>
+    </button>
+  );
+}
+
+function InvestorPanel({ investor, lang, onOpenDetail, onSelectStock }: {
+  investor: InvestorSummary;
+  lang: string;
+  onOpenDetail: () => void;
+  onSelectStock: (ticker: string) => void;
+}) {
+  return (
+    <div style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: 22, borderTop: `2px solid ${investor.color}`,
+    }}>
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 12, background: `${investor.color}22`,
+            border: `1.5px solid ${investor.color}55`, color: investor.color,
+            fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>{investor.avatar_initial}</div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800 }}>{investor.name}</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              {investor.firm} · {investor.title}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: "4px 10px",
+            background: `${investor.color}18`, color: investor.color, borderRadius: 6, whiteSpace: "nowrap",
+          }}>{investor.style}</span>
+          <button
+            onClick={onOpenDetail}
+            style={{
+              fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+              background: "var(--accent-dim)", color: "var(--accent)", border: "1px solid var(--accent-glow)", whiteSpace: "nowrap",
+            }}
+          >
+            {lang === "ko" ? "포트폴리오 자세히" : "Full portfolio"}
+          </button>
+        </div>
       </div>
 
-      <div style={{ marginTop: 30, marginBottom: 14, fontSize: 16, fontWeight: 700 }}>
-        {lang === "ko" ? "개별 투자자" : "Individual investors"}
+      {/* 설명 */}
+      <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.65, marginBottom: 12 }}>
+        {investor.description}
+      </p>
+      <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 18 }}>
+        <span style={{ color: investor.color, fontWeight: 700, marginRight: 6 }}>{lang === "ko" ? "대표 이력" : "Known for"}</span>
+        {investor.known_for}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
-        {loadingInvestors
-          ? Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
-          : investors.map(inv => (
-              <InvestorCard key={inv.id} investor={inv} onClick={() => onSelectInvestor(inv.id)} />
-            ))}
+
+      {/* 보유 종목 */}
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
+        {lang === "ko" ? "주요 보유 종목" : "Top holdings"}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+        {investor.holdings_data.map(h => {
+          const isUp = (h.change_30d_pct ?? 0) >= 0;
+          return (
+            <button
+              key={h.ticker}
+              onClick={() => onSelectStock(h.ticker)}
+              style={{
+                background: "var(--accent-dim)", border: "1px solid var(--accent-glow)",
+                borderRadius: 8, padding: "6px 12px", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 7,
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>{h.ticker}</span>
+              {h.change_30d_pct != null && (
+                <span style={{ fontSize: 11, fontWeight: 500, color: isUp ? "var(--up)" : "var(--down)" }}>
+                  {isUp ? "+" : ""}{h.change_30d_pct.toFixed(1)}%
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 최근 동향 */}
+      <div style={{
+        fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6,
+        borderTop: "1px solid var(--border)", paddingTop: 14,
+      }}>
+        <span style={{ color: "var(--gold)", fontWeight: 700, fontSize: 11, marginRight: 6 }}>LATEST</span>
+        {investor.recent_moves}
       </div>
     </div>
   );

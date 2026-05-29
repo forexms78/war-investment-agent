@@ -516,6 +516,30 @@ button { font-family: inherit; cursor: pointer; }
   }
 }
 
+/* 투자자 메인 — 좌측 네비 + 우측 콘텐츠 */
+.wx-investors-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.wx-inv-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 80px;
+  min-width: 0;
+}
+@media (max-width: 860px) {
+  .wx-investors-layout {
+    grid-template-columns: 1fr;
+  }
+  .wx-inv-nav {
+    position: static;
+  }
+}
+
 .wx-etf-row {
   display: grid;
   grid-template-columns: 30px minmax(180px, 1.5fr) 90px 110px 70px 70px 60px 60px 60px 20px;
