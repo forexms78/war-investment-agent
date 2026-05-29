@@ -74,34 +74,21 @@ export default function MarketsSection(props: MarketsProps) {
   }
 
   return (
-    <div>
-      {/* 서브 탭 네비게이션 */}
-      <div style={{
-        display: "flex", gap: 4, marginBottom: 24,
-        borderBottom: "1px solid var(--border)", paddingBottom: 0,
-      }}>
+    <div className="wx-investors-layout">
+      {/* 좌측 세로 네비게이션 */}
+      <nav className="wx-inv-nav">
         {MARKET_TABS.map(tab => (
-          <button
+          <MarketNavItem
             key={tab.id}
+            label={tab.label}
+            active={activeTab === tab.id}
             onClick={() => handleTabChange(tab.id)}
-            style={{
-              padding: "8px 18px",
-              background: "transparent",
-              border: "none",
-              borderBottom: activeTab === tab.id ? "2px solid var(--accent)" : "2px solid transparent",
-              color: activeTab === tab.id ? "var(--accent)" : "var(--text-secondary)",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: activeTab === tab.id ? 700 : 400,
-              transition: "all 0.15s",
-              marginBottom: -1,
-            }}
-          >
-            {tab.label}
-          </button>
+          />
         ))}
-      </div>
+      </nav>
 
+      {/* 우측 콘텐츠 */}
+      <div style={{ minWidth: 0 }}>
       {/* ETF */}
       {activeTab === "etf" && (
         <div className="fade-in">
@@ -228,6 +215,35 @@ export default function MarketsSection(props: MarketsProps) {
           ) : null}
         </div>
       )}
+      </div>
     </div>
+  );
+}
+
+function MarketNavItem({ label, active, onClick }: {
+  label: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%",
+        padding: "10px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+        background: active ? "var(--accent-dim)" : "transparent",
+        border: active ? "1px solid var(--accent-glow)" : "1px solid transparent",
+        transition: "all 0.15s",
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--card-hover)"; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+    >
+      <span style={{
+        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+        background: active ? "var(--accent)" : "var(--text-muted)",
+      }} />
+      <span style={{
+        fontSize: 14, fontWeight: active ? 700 : 600,
+        color: active ? "var(--accent)" : "var(--text-primary)",
+      }}>{label}</span>
+    </button>
   );
 }
