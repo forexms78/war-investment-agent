@@ -569,7 +569,8 @@ async def refresh_etf_signals():
 
 
 async def _refresh_etf_launches(market: str):
-    """ETF 신규상장 수집 → 목록 저장 + 상위 15개(예정 임박순→최근 최신순) 상세 미리 캐시.
+    """ETF 신규상장 수집 → 목록 저장 + 티커 보유 상위 N개(DETAIL_PRECACHE_N) 상세 미리 캐시.
+    그 외 종목은 /etf-launches/{market}/{ticker} 엔드포인트가 미스 시 라이브 빌드한다.
     market: 'kr' | 'us'. 외부 소스가 비거나 막혀도 graceful(빈 구조 저장 안 함, 기존 캐시 유지)."""
     from backend.services.etf_launches import (
         collect_kr_launches, collect_us_launches, build_detail,

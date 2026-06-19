@@ -39,8 +39,12 @@ SYSTEM = (
     "과장·추천 단정·이모지 금지. 수익 보장 표현 금지. 사실 기반으로 담백하게 쓴다."
 )
 
-# 시장별 Gemini 해설 생성 상한 (요구사항)
-GEMINI_TOP_N = 15
+# 카드 AI 한줄(oneliner) 생성 상한 — 버킷(예정/최근)별 각각 상위 N개.
+# 합산 슬라이스(예정+최근)로 하면 예정 건수가 많을 때 최근(매수 가능·실데이터)이 0개가 되므로 버킷별로 분배한다.
+ONELINER_PER_BUCKET = 8
+# 상세(구성종목+해설) 사전 캐시 개수 — 티커 보유 항목(=상장 완료) 우선.
+# 나머지는 엔드포인트가 DB 미스 시 라이브 빌드(+캐시)하므로 모든 종목이 클릭 가능.
+DETAIL_PRECACHE_N = 6
 
 # 최근 상장 필터 기준일 수
 RECENT_DAYS = 30
@@ -591,13 +595,10 @@ def _gemini_explanation(item: dict, holdings: list[dict]) -> str:
         return ""
 
 
-def _apply_gemini_oneliners(items: list[dict]) -> None:
-    """정렬된 리스트 상위 GEMINI_TOP_N개에만 ai_oneliner 채움(in-place)."""
+def _apply_gemini_oneliners(items: list[dict], cap: int) -> None:
+    """정렬된 리스트 상위 cap개에만 ai_oneliner 채움(in-place)."""
     for i, item in enumerate(items):
-        if i < GEMINI_TOP_N:
-            item["ai_oneliner"] = _gemini_oneliner(item)
-        else:
-            item["ai_oneliner"] = ""
+        item["ai_oneliner"] = _gemini_oneliner(item) if i < cap else ""
 
 
 def _strip_internal(items: list[dict]) -> list[dict]:
@@ -628,16 +629,20 @@ def collect_us_launches() -> dict:
     upcoming = _fetch_us_upcoming()
     recent = _fetch_us_recent()
 
-    # 예정 → 최근 순으로 합쳐 상위 15개에만 해설
-    combined = upcoming + recent
-    _apply_gemini_oneliners(combined)
+    # 카드 한줄은 버킷별 상위 N개에만(예정·최근 각각). 합산 슬라이스 시 예정이 많으면
+    # 최근(매수 가능·실데이터)이 oneliner를 못 받는 문제를 방지.
+    _apply_gemini_oneliners(upcoming, ONELINER_PER_BUCKET)
+    _apply_gemini_oneliners(recent, ONELINER_PER_BUCKET)
+
+    # 상세 사전캐시 후보: 티커 보유분(=상장 완료, 구성종목 조회 가능) 우선. 나머지는 엔드포인트가 라이브 빌드.
+    detail_candidates = [it for it in (recent + upcoming) if (it.get("ticker") or "").strip()]
 
     result = {
         "as_of":    datetime.now(timezone.utc).isoformat(),
         "upcoming": _strip_internal(upcoming),
         "recent":   _strip_internal(recent),
         # 스케줄러 상세 빌드용 신선 항목(ISIN/정렬키 포함). db_set 전 pop 됨 — 엔드포인트엔 노출 안 함.
-        "_raw_top": combined[:GEMINI_TOP_N],
+        "_raw_top": detail_candidates[:DETAIL_PRECACHE_N],
     }
     return result
 
@@ -650,15 +655,17 @@ def collect_kr_launches() -> dict:
     # KRX 인증 게이트로 recent가 비는 것이 현재 정상 경로(상장일 보유 공개 피드 부재).
     # 네이버 etfItemList는 상장일이 없어 '최근 30일' 단독 산출이 불가 → 목록 보강에만 한정.
 
-    combined = upcoming + recent
-    _apply_gemini_oneliners(combined)
+    _apply_gemini_oneliners(upcoming, ONELINER_PER_BUCKET)
+    _apply_gemini_oneliners(recent, ONELINER_PER_BUCKET)
+
+    detail_candidates = [it for it in (recent + upcoming) if (it.get("ticker") or "").strip()]
 
     result = {
         "as_of":    datetime.now(timezone.utc).isoformat(),
         "upcoming": _strip_internal(upcoming),
         "recent":   _strip_internal(recent),
         # 스케줄러 상세 빌드용 신선 항목(ISIN/정렬키 포함). db_set 전 pop 됨 — 엔드포인트엔 노출 안 함.
-        "_raw_top": combined[:GEMINI_TOP_N],
+        "_raw_top": detail_candidates[:DETAIL_PRECACHE_N],
     }
     return result
 

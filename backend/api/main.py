@@ -462,26 +462,24 @@ async def etf_launches_us():
 
 @app.get("/etf-launches/{market}/{ticker}")
 async def etf_launch_detail(market: str, ticker: str):
-    """ETF 신규상장 상세(구성종목+AI 해설) — DB-Only, 스케줄러가 상위 15개 미리 캐시"""
+    """ETF 신규상장 상세(구성종목+AI 해설).
+    스케줄러가 상위 N개를 미리 캐시하고, 그 외 종목은 DB 미스 시 즉시 라이브 빌드 후 캐시한다
+    (사전캐시에 없는 최근상장 종목도 클릭 시 구성종목+해설이 표시되도록)."""
     market = market.lower()
     if market not in ("kr", "us"):
         raise HTTPException(status_code=404, detail="market은 kr 또는 us")
-    cache_key = f"etf_launch_detail_{market}_{ticker.strip().upper()}"
+    tk = ticker.strip().upper()
+    cache_key = f"etf_launch_detail_{market}_{tk}"
     cached = await _run(db_get_stale, cache_key)
     if cached:
         return cached
-    return {
-        "ticker":         ticker.strip().upper(),
-        "name":           ticker.strip().upper(),
-        "issuer":         "",
-        "launch_date":    "",
-        "status":         "recent",
-        "index_name":     "",
-        "category":       "",
-        "holdings":       [],
-        "ai_explanation": "",
-        "as_of":          None,
-    }
+
+    # DB 미스 — 라이브 빌드(구성종목+Gemini 해설) 후 캐시. 실패해도 빈 구조 graceful 반환.
+    from backend.services.etf_launches import build_detail
+    detail = await _run(build_detail, market, tk, None)
+    if detail.get("holdings") or detail.get("ai_explanation"):
+        await _run(db_set, cache_key, detail)
+    return detail
 
 
 _LAST_ADMIN_REFRESH_AT: float = 0.0
