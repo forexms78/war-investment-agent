@@ -355,6 +355,37 @@ export interface ETFHoldingsData {
   source: string;
 }
 
+// ETF 신규상장 (국내·미국)
+export type EtfLaunchStatus = "upcoming" | "recent";
+
+export interface EtfLaunch {
+  ticker: string;
+  name: string;
+  issuer?: string | null;       // 운용사 (TIGER / KODEX / ACE / SOL / RISE 등)
+  launch_date: string;          // 상장(예정)일 — D-day 계산 기준
+  status: EtfLaunchStatus;      // upcoming(상장예정) | recent(최근상장)
+  index_name?: string | null;   // 추종지수/테마
+  category?: string | null;     // 카테고리
+  ai_oneliner?: string | null;  // AI 한줄 요약
+}
+
+export interface EtfLaunchHolding {
+  name: string;
+  weight: number | null;        // KR은 비중 파싱 실패 시 null 가능 (UI는 null 가드 후 표기)
+}
+
+export interface EtfLaunchDetail extends EtfLaunch {
+  holdings: EtfLaunchHolding[]; // 예정 건은 빈 배열일 수 있음
+  ai_explanation?: string | null;
+  as_of?: string | null;        // 데이터 기준 시각
+}
+
+export interface EtfLaunchListResponse {
+  as_of?: string | null;
+  upcoming: EtfLaunch[];
+  recent: EtfLaunch[];
+}
+
 // My Lab
 export interface AnalysisFile {
   name: string;

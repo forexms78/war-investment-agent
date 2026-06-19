@@ -433,6 +433,57 @@ async def etf_holdings(ticker: str):
     return await _run(get_etf_holdings, ticker)
 
 
+# ─────────────────────────────────────────────
+# ETF 신규상장 (국내·미국) — markets 탭의 /etf-signals와 완전 별개
+# ─────────────────────────────────────────────
+
+def _empty_etf_launches() -> dict:
+    """수집 전/실패 시 빈 구조 (프론트 계약 유지)"""
+    return {"as_of": None, "upcoming": [], "recent": []}
+
+
+@app.get("/etf-launches/kr")
+async def etf_launches_kr():
+    """국내 ETF 신규상장(예정+최근30일) — DB-Only, 스케줄러 6시간 주기"""
+    cached = await _run(db_get_stale, "etf_launches_kr")
+    if cached:
+        return cached
+    return _empty_etf_launches()
+
+
+@app.get("/etf-launches/us")
+async def etf_launches_us():
+    """미국 ETF 신규상장(예정+최근30일) — DB-Only, 스케줄러 6시간 주기"""
+    cached = await _run(db_get_stale, "etf_launches_us")
+    if cached:
+        return cached
+    return _empty_etf_launches()
+
+
+@app.get("/etf-launches/{market}/{ticker}")
+async def etf_launch_detail(market: str, ticker: str):
+    """ETF 신규상장 상세(구성종목+AI 해설) — DB-Only, 스케줄러가 상위 15개 미리 캐시"""
+    market = market.lower()
+    if market not in ("kr", "us"):
+        raise HTTPException(status_code=404, detail="market은 kr 또는 us")
+    cache_key = f"etf_launch_detail_{market}_{ticker.strip().upper()}"
+    cached = await _run(db_get_stale, cache_key)
+    if cached:
+        return cached
+    return {
+        "ticker":         ticker.strip().upper(),
+        "name":           ticker.strip().upper(),
+        "issuer":         "",
+        "launch_date":    "",
+        "status":         "recent",
+        "index_name":     "",
+        "category":       "",
+        "holdings":       [],
+        "ai_explanation": "",
+        "as_of":          None,
+    }
+
+
 _LAST_ADMIN_REFRESH_AT: float = 0.0
 _ADMIN_REFRESH_COOLDOWN_SEC = 60.0
 

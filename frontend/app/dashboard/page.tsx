@@ -22,10 +22,11 @@ const InvestorModal      = dynamic(() => import("@/components/InvestorModal"));
 const StockModal         = dynamic(() => import("@/components/StockModal"));
 const ETFHoldingsModal   = dynamic(() => import("@/components/ETFHoldingsModal"));
 const ForeignFlowSection = dynamic(() => import("@/components/ForeignFlowSection"));
+const EtfLaunchSection   = dynamic(() => import("@/components/EtfLaunchSection"));
 
 const API = process.env.NEXT_PUBLIC_API_URL;
 
-type Tab = "investors" | "markets" | "foreign" | "mylab";
+type Tab = "investors" | "markets" | "etfLaunch" | "foreign" | "mylab";
 type MarketTab = "etf" | "stocks" | "crypto" | "realestate" | "commodities" | "bonds" | "rates";
 
 function fmtTime(d: Date) {
@@ -154,6 +155,7 @@ export default function Home() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "investors", label: t("tab.investors") },
     { id: "markets",   label: t("tab.markets")   },
+    { id: "etfLaunch", label: t("tab.etfLaunch") },
     { id: "foreign",   label: t("tab.foreign")   },
     { id: "mylab",     label: t("tab.mylab")     },
   ];
@@ -372,6 +374,13 @@ export default function Home() {
               onLoadBonds={loadBonds}
               onRetryBonds={() => { setBondData(null); setBondError(false); loadBonds(); }}
             />
+          </div>
+        )}
+
+        {/* ETF 신규상장 (국내·미국) */}
+        {activeTab === "etfLaunch" && (
+          <div className="fade-in">
+            <EtfLaunchSection />
           </div>
         )}
 

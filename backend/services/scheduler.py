@@ -74,9 +74,9 @@ async def refresh_investors():
                 ],
             })
         await _run_sync(db_set, "investors_list", {"investors": result})
-        logger.info("✅ [scheduler] investors_list 갱신 완료")
+        logger.info("[OK] [scheduler] investors_list 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] investors_list 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] investors_list 갱신 실패: {e}")
 
 
 async def refresh_stocks_hot():
@@ -88,9 +88,9 @@ async def refresh_stocks_hot():
         stocks = await get_multiple_stocks_parallel(tickers)
         result = [data for ticker in tickers if "error" not in (data := stocks.get(ticker, {}))]
         await _run_sync(db_set, "stocks_hot", {"stocks": result})
-        logger.info("✅ [scheduler] stocks_hot 갱신 완료")
+        logger.info("[OK] [scheduler] stocks_hot 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] stocks_hot 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] stocks_hot 갱신 실패: {e}")
 
 
 async def refresh_recommendations():
@@ -117,9 +117,9 @@ async def refresh_recommendations():
             "as_of":      AS_OF_QUARTER,
             "as_of_date": AS_OF_DATE,
         })
-        logger.info("✅ [scheduler] stocks_recommendations 갱신 완료")
+        logger.info("[OK] [scheduler] stocks_recommendations 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] stocks_recommendations 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] stocks_recommendations 갱신 실패: {e}")
 
 
 async def refresh_investor_details():
@@ -157,9 +157,9 @@ async def refresh_investor_details():
             ]
             result = {**inv, "portfolio": portfolio_with_prices, "news": news, "insight": insight}
             await _run_sync(db_set, f"investor_detail_{investor_id}", result)
-            logger.info(f"✅ [scheduler] investor_detail_{investor_id} 갱신 완료")
+            logger.info(f"[OK] [scheduler] investor_detail_{investor_id} 갱신 완료")
         except Exception as e:
-            logger.error(f"❌ [scheduler] investor_detail_{investor_id} 갱신 실패: {e}")
+            logger.error(f"[FAIL] [scheduler] investor_detail_{investor_id} 갱신 실패: {e}")
 
 
 async def refresh_hot_stock_details():
@@ -189,9 +189,9 @@ async def refresh_hot_stock_details():
             )
             result = {**data, "news": news, "insight": insight}
             await _run_sync(db_set, f"stock_detail_{ticker}_30d", result)
-            logger.info(f"✅ [scheduler] stock_detail_{ticker} 갱신 완료")
+            logger.info(f"[OK] [scheduler] stock_detail_{ticker} 갱신 완료")
         except Exception as e:
-            logger.error(f"❌ [scheduler] stock_detail_{ticker} 갱신 실패: {e}")
+            logger.error(f"[FAIL] [scheduler] stock_detail_{ticker} 갱신 실패: {e}")
 
 
 async def refresh_crypto():
@@ -204,12 +204,12 @@ async def refresh_crypto():
         news_task = _run_sync(fetch_crypto_news)
         coins, news = await asyncio.gather(coins_task, news_task)
         if not coins:
-            logger.warning("⚠️ [scheduler] CoinGecko 빈 응답 — 기존 DB 유지")
+            logger.warning("[WARN] [scheduler] CoinGecko 빈 응답 — 기존 DB 유지")
             return
         await _run_sync(db_set, "crypto", {"coins": coins, "news": news})
-        logger.info("✅ [scheduler] crypto 갱신 완료")
+        logger.info("[OK] [scheduler] crypto 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] crypto 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] crypto 갱신 실패: {e}")
 
 
 async def refresh_commodities():
@@ -222,9 +222,9 @@ async def refresh_commodities():
         news_task = _run_sync(fetch_commodity_news)
         data, news = await asyncio.gather(data_task, news_task)
         await _run_sync(db_set, "commodities", {"commodities": data, "news": news})
-        logger.info("✅ [scheduler] commodities 갱신 완료")
+        logger.info("[OK] [scheduler] commodities 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] commodities 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] commodities 갱신 실패: {e}")
 
 
 async def refresh_bonds():
@@ -256,9 +256,9 @@ async def refresh_bonds():
             "news": news,
         }
         await _run_sync(db_set, "bonds", result)
-        logger.info("✅ [scheduler] bonds 갱신 완료")
+        logger.info("[OK] [scheduler] bonds 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] bonds 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] bonds 갱신 실패: {e}")
 
 
 async def refresh_korea_rates():
@@ -268,9 +268,9 @@ async def refresh_korea_rates():
     try:
         data = await _run_sync(get_korea_rates)
         await _run_sync(db_set, "korea_rates", data)
-        logger.info("✅ [scheduler] korea_rates 갱신 완료")
+        logger.info("[OK] [scheduler] korea_rates 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] korea_rates 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] korea_rates 갱신 실패: {e}")
 
 
 async def refresh_rates():
@@ -289,9 +289,9 @@ async def refresh_rates():
             "updated_at": kr_data.get("updated_at", ""),
         }
         await _run_sync(db_set, "rates", result)
-        logger.info("✅ [scheduler] rates 갱신 완료 (FRED+BOK)")
+        logger.info("[OK] [scheduler] rates 갱신 완료 (FRED+BOK)")
     except Exception as e:
-        logger.error(f"❌ [scheduler] rates 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] rates 갱신 실패: {e}")
 
 
 async def refresh_realestate():
@@ -309,9 +309,9 @@ async def refresh_realestate():
             {"label": "서울 아파트 거래량", "value": "3,840건", "change": "+8.5%", "unit": "월간", "trend": "up"},
         ]
         await _run_sync(db_set, "realestate", {"indicators": indicators, "news": news})
-        logger.info("✅ [scheduler] realestate 갱신 완료")
+        logger.info("[OK] [scheduler] realestate 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] realestate 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] realestate 갱신 실패: {e}")
 
 
 async def refresh_money_flow():
@@ -372,9 +372,9 @@ async def refresh_money_flow():
         fed_rate = await _run_sync(get_fed_rate)
         result = {"assets": assets, "rate_signal": signal, "fed_rate": fed_rate, "korea_rates": kor}
         await _run_sync(db_set, "money_flow", result)
-        logger.info("✅ [scheduler] money_flow 갱신 완료")
+        logger.info("[OK] [scheduler] money_flow 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] money_flow 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] money_flow 갱신 실패: {e}")
 
 
 async def refresh_daily_signal():
@@ -408,9 +408,9 @@ async def refresh_daily_signal():
         )
         result = {**signal, "market_news": market_news, "asia_news": asia_news}
         await _run_sync(db_set, "daily_signal", result)
-        logger.info("✅ [scheduler] daily_signal 갱신 완료")
+        logger.info("[OK] [scheduler] daily_signal 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] daily_signal 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] daily_signal 갱신 실패: {e}")
 
 
 async def refresh_news_ai():
@@ -422,9 +422,9 @@ async def refresh_news_ai():
         news_by_category = await _run_sync(fetch_market_news_all)
         result = await _run_sync(generate_news_analysis, news_by_category)
         await _run_sync(db_set, "news_ai", result)
-        logger.info("✅ [scheduler] news_ai 갱신 완료")
+        logger.info("[OK] [scheduler] news_ai 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] news_ai 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] news_ai 갱신 실패: {e}")
 
 
 async def refresh_holdings_13f():
@@ -451,11 +451,11 @@ async def refresh_holdings_13f():
                 })
                 ok += 1
             else:
-                logger.warning(f"⚠️ [scheduler] 13f {inv['id']} 빈 응답 — 기존 유지")
+                logger.warning(f"[WARN] [scheduler] 13f {inv['id']} 빈 응답 — 기존 유지")
         except Exception as e:
-            logger.error(f"❌ [scheduler] 13f {inv['id']} 실패: {e}")
+            logger.error(f"[FAIL] [scheduler] 13f {inv['id']} 실패: {e}")
         await asyncio.sleep(1.0)  # 13f.info rate limit 예의
-    logger.info(f"✅ [scheduler] holdings_13f 갱신 완료 ({ok}/8)")
+    logger.info(f"[OK] [scheduler] holdings_13f 갱신 완료 ({ok}/8)")
 
 
 async def refresh_foreign_flow():
@@ -513,7 +513,7 @@ async def refresh_foreign_flow():
         empty_tb = not (tb.get("kospi") or tb.get("kosdaq"))
         empty_mt = not ((mt.get("kospi") or {}).get("bizdate") or (mt.get("kosdaq") or {}).get("bizdate"))
         if empty_tb and empty_mt:
-            logger.warning("⚠️ [scheduler] foreign_flow 빈 응답 — 기존 DB 유지")
+            logger.warning("[WARN] [scheduler] foreign_flow 빈 응답 — 기존 DB 유지")
             return
 
         # 기준 날짜 — 시장 합계 bizdate 사용 (종목 TOP 응답에는 날짜 없음)
@@ -546,12 +546,12 @@ async def refresh_foreign_flow():
 
         await _run_sync(db_set, "foreign_flow", snapshot)
         logger.info(
-            f"✅ [scheduler] foreign_flow 갱신 완료 "
+            f"[OK] [scheduler] foreign_flow 갱신 완료 "
             f"(market_history={len(snapshot['market_history']['kospi'])}일, "
             f"top_history={len(all_dates)}일, bizdate={bizdate})"
         )
     except Exception as e:
-        logger.error(f"❌ [scheduler] foreign_flow 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] foreign_flow 갱신 실패: {e}")
 
 
 async def refresh_etf_signals():
@@ -563,9 +563,66 @@ async def refresh_etf_signals():
         result = await _run_sync(get_etf_signals)
         await _run_sync(db_set, "etf_signals", result)
         await _run_sync(save_etf_predictions, result)
-        logger.info("✅ [scheduler] etf_signals 갱신 완료")
+        logger.info("[OK] [scheduler] etf_signals 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] etf_signals 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] etf_signals 갱신 실패: {e}")
+
+
+async def _refresh_etf_launches(market: str):
+    """ETF 신규상장 수집 → 목록 저장 + 상위 15개(예정 임박순→최근 최신순) 상세 미리 캐시.
+    market: 'kr' | 'us'. 외부 소스가 비거나 막혀도 graceful(빈 구조 저장 안 함, 기존 캐시 유지)."""
+    from backend.services.etf_launches import (
+        collect_kr_launches, collect_us_launches, build_detail,
+        KEY_KR, KEY_US,
+    )
+    from backend.services.db_cache import db_set
+    try:
+        if market == "kr":
+            result = await _run_sync(collect_kr_launches)
+            list_key = KEY_KR
+        else:
+            result = await _run_sync(collect_us_launches)
+            list_key = KEY_US
+
+        # 빈 수집이면 기존 캐시 유지(요구사항: 실패 시 마지막 캐시 유지)
+        if not result.get("upcoming") and not result.get("recent"):
+            logger.warning(f"[scheduler] etf_launches_{market} 빈 수집 — 기존 DB 유지")
+            return
+
+        # _raw_top: 상세 빌드용 신선 항목(ISIN/_sort 포함, 직렬화 불가) — db_set 전 분리
+        raw_top = result.pop("_raw_top", [])
+
+        await _run_sync(db_set, list_key, result)
+        logger.info(
+            f"[scheduler] etf_launches_{market} 갱신 완료 "
+            f"(예정 {len(result['upcoming'])} / 최근 {len(result['recent'])})"
+        )
+
+        # 상세 미리 캐시 — 상위 15개 중 티커 있는 항목(=상장 완료분)만.
+        # 신선 항목(ISIN 등 내부필드 포함)을 build_detail에 직접 넘겨 KR 구성종목 조회 가능케 함.
+        for item in raw_top:
+            ticker = (item.get("ticker") or "").strip()
+            if not ticker:
+                continue  # 예정 건(티커 미정)은 상세 캐시 스킵 — 목록 카드로 충분
+            try:
+                detail = await _run_sync(build_detail, market, ticker, item)
+                await _run_sync(
+                    db_set, f"etf_launch_detail_{market}_{ticker.upper()}", detail,
+                )
+            except Exception as e:
+                logger.warning(f"[scheduler] etf_launch_detail {market}/{ticker} 실패: {e}")
+    except Exception as e:
+        logger.error(f"[scheduler] etf_launches_{market} 갱신 실패: {e}")
+
+
+async def refresh_etf_launches_kr():
+    """국내 ETF 신규상장 갱신 (6시간 주기)"""
+    await _refresh_etf_launches("kr")
+
+
+async def refresh_etf_launches_us():
+    """미국 ETF 신규상장 갱신 (6시간 주기)"""
+    await _refresh_etf_launches("us")
 
 
 async def evaluate_predictions():
@@ -573,9 +630,9 @@ async def evaluate_predictions():
     from backend.services.prediction_logger import evaluate_predictions as _evaluate
     try:
         updated = await _run_sync(_evaluate)
-        logger.info(f"✅ [scheduler] prediction_log 평가 완료: {updated}건")
+        logger.info(f"[OK] [scheduler] prediction_log 평가 완료: {updated}건")
     except Exception as e:
-        logger.error(f"❌ [scheduler] prediction_log 평가 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] prediction_log 평가 실패: {e}")
 
 
 async def refresh_market_driver():
@@ -585,9 +642,9 @@ async def refresh_market_driver():
     try:
         headlines = await _run_sync(fetch_top_headlines, 20)
         await _run_sync(generate_market_drivers, headlines)
-        logger.info("✅ [scheduler] market_driver 갱신 완료")
+        logger.info("[OK] [scheduler] market_driver 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] market_driver 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] market_driver 갱신 실패: {e}")
 
 
 async def refresh_today_picks():
@@ -595,9 +652,9 @@ async def refresh_today_picks():
     from backend.services.today_picks import get_today_picks
     try:
         await _run_sync(get_today_picks)
-        logger.info("✅ [scheduler] today_picks 갱신 완료")
+        logger.info("[OK] [scheduler] today_picks 갱신 완료")
     except Exception as e:
-        logger.error(f"❌ [scheduler] today_picks 갱신 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] today_picks 갱신 실패: {e}")
 
 
 async def refresh_review_cycle():
@@ -608,11 +665,11 @@ async def refresh_review_cycle():
     from backend.services.prediction_tracker import verify_past_predictions, analyze_failures
     try:
         v = await _run_sync(verify_past_predictions)
-        logger.info(f"✅ [scheduler] review verify 완료: {v}")
+        logger.info(f"[OK] [scheduler] review verify 완료: {v}")
         a = await _run_sync(analyze_failures)
-        logger.info(f"✅ [scheduler] review analyze 완료: {a}")
+        logger.info(f"[OK] [scheduler] review analyze 완료: {a}")
     except Exception as e:
-        logger.error(f"❌ [scheduler] review_cycle 실패: {e}")
+        logger.error(f"[FAIL] [scheduler] review_cycle 실패: {e}")
 
 
 async def send_telegram_morning():
@@ -637,7 +694,7 @@ async def warm_all_caches():
     """앱 시작 시 캐시 웜업 — Gemini 없는 데이터 전부 즉시 갱신
     Gemini 잡(daily_signal·news_ai·investor_details·hot_stock_details·market_driver·today_picks)은
     DB 미스 시에만 즉시 1회 실행 (첫 배포 빈 화면 방지), 이후 스케줄러가 주기적으로 갱신"""
-    logger.info("🔥 [scheduler] 캐시 웜업 시작...")
+    logger.info("[WARMUP] [scheduler] 캐시 웜업 시작...")
     await asyncio.gather(
         refresh_investors(),
         refresh_stocks_hot(),
@@ -651,44 +708,54 @@ async def warm_all_caches():
         refresh_money_flow(),
         return_exceptions=True,
     )
-    logger.info("🔥 [scheduler] 캐시 웜업 완료")
+    logger.info("[WARMUP] [scheduler] 캐시 웜업 완료")
 
     # Gemini 잡: DB 미스 시에만 즉시 1회 실행 (첫 배포 후 빈 화면 방지)
     from backend.services.db_cache import db_get_stale
     md_cached = await _run_sync(db_get_stale, "market_driver")
     if not md_cached:
-        logger.info("🔥 [scheduler] market_driver DB 미스 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] market_driver DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_market_driver())
 
     picks_cached = await _run_sync(db_get_stale, "today_picks")
     if not picks_cached:
-        logger.info("🔥 [scheduler] today_picks DB 미스 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] today_picks DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_today_picks())
 
     ds_cached = await _run_sync(db_get_stale, "daily_signal")
     if not ds_cached:
-        logger.info("🔥 [scheduler] daily_signal DB 미스 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] daily_signal DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_daily_signal())
 
     na_cached = await _run_sync(db_get_stale, "news_ai")
     if not na_cached:
-        logger.info("🔥 [scheduler] news_ai DB 미스 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] news_ai DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_news_ai())
 
     es_cached = await _run_sync(db_get_stale, "etf_signals")
     if not es_cached:
-        logger.info("🔥 [scheduler] etf_signals DB 미스 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] etf_signals DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_etf_signals())
 
     ff_cached = await _run_sync(db_get_stale, "foreign_flow")
     if _foreign_flow_needs_backfill(ff_cached):
-        logger.info("🔥 [scheduler] foreign_flow 미스/당일 누락 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] foreign_flow 미스/당일 누락 → 즉시 1회 실행")
         asyncio.create_task(refresh_foreign_flow())
 
     tf_cached = await _run_sync(db_get_stale, "investor_13f_warren-buffett")
     if not tf_cached:
-        logger.info("🔥 [scheduler] holdings_13f DB 미스 → 즉시 1회 실행")
+        logger.info("[WARMUP] [scheduler] holdings_13f DB 미스 → 즉시 1회 실행")
         asyncio.create_task(refresh_holdings_13f())
+
+    el_kr_cached = await _run_sync(db_get_stale, "etf_launches_kr")
+    if not el_kr_cached:
+        logger.info("[scheduler] etf_launches_kr DB 미스 — 즉시 1회 실행")
+        asyncio.create_task(refresh_etf_launches_kr())
+
+    el_us_cached = await _run_sync(db_get_stale, "etf_launches_us")
+    if not el_us_cached:
+        logger.info("[scheduler] etf_launches_us DB 미스 — 즉시 1회 실행")
+        asyncio.create_task(refresh_etf_launches_us())
 
 
 def create_scheduler() -> AsyncIOScheduler:
@@ -712,6 +779,8 @@ def create_scheduler() -> AsyncIOScheduler:
     scheduler.add_job(refresh_etf_signals,       "interval", minutes=30, id="etf_signals",     max_instances=1)
     scheduler.add_job(refresh_daily_signal,     "interval", hours=6,  id="daily_signal",      max_instances=1)
     scheduler.add_job(refresh_today_picks,       "interval", hours=6,  id="today_picks",       max_instances=1)
+    scheduler.add_job(refresh_etf_launches_kr,   "interval", hours=6,  id="etf_launches_kr",   max_instances=1)
+    scheduler.add_job(refresh_etf_launches_us,   "interval", hours=6,  id="etf_launches_us",   max_instances=1)
     # ── AI 추천 회고 — 매일 KST 07:00 (UTC 22:00) 검증 + 실패분석 ──
     scheduler.add_job(refresh_review_cycle, CronTrigger(hour=22, minute=0, timezone="UTC"), id="review_cycle", max_instances=1)
     # ── 외국인 매매 종목 TOP(네이버) — KST 16:30 장 마감 후 1차 + 17:30 백업 (UTC 07:30 / 08:30) ──
